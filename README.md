@@ -4,15 +4,19 @@
 
 ## 功能特性
 
-- 🎨 交互式 CLI（基于 Ink）
-- 🤖 DeepSeek Chat Completions agent loop
-- 🔧 支持工具调用（文件读写、搜索）
+- 🎨 **交互式 CLI**：基于 Ink 的现代终端界面
+- 🤖 **DeepSeek Agent**：Chat Completions agent loop
+- 🔧 **完整工具集**：15+ 个强大工具
+  - 📁 **文件操作**：读写、编辑、删除、移动（8 个工具）
+  - 🔍 **代码搜索**：查找文件、搜索文本、批量替换（3 个工具）
+  - ⚙️ **命令执行**：运行测试、构建、检查（安全白名单）
+  - 🔄 **Git 集成**：status、diff、log（3 个工具）
 - 📝 **增强的 Markdown 渲染**
   - ⚡ **流式渲染**：实时显示 Agent 输出，逐 token 渲染
   - 🎨 代码高亮（180+ 语言）
   - 📊 GFM 支持（表格、任务列表）
   - 🛡️ 智能容错（处理不完整 Markdown）
-- 💾 配置持久化（无需每次设置 API Key）
+- 💾 **配置持久化**：无需每次设置 API Key
 
 ## 快速开始
 
@@ -54,11 +58,42 @@ bincode
 
 ## 使用示例
 
+### 基础对话
 ```text
 > 帮我查看 README.md 并优化文档结构
 > 在 src 目录里搜索 agent loop 的实现
 > 创建一个 notes/todo.md，写入今天的任务
 > 查找所有 .tsx 文件并分析代码结构
+```
+
+### 高级功能
+
+**文件操作**：
+```text
+> 列出 src 目录的内容（显示文件大小）
+> 将 src/config.ts 中的 'v4-pro' 改为 'v4-flash'
+> 同时读取 package.json 和 tsconfig.json
+> 重命名 src/old.ts 为 src/new.ts
+```
+
+**命令执行**：
+```text
+> 运行 npm test 看看测试是否通过
+> 运行 tsc --noEmit 检查类型错误
+> 运行 npm run build 构建项目
+```
+
+**Git 集成**：
+```text
+> 查看 git 状态
+> 显示 src/tools.ts 的修改差异
+> 查看最近 5 次提交历史
+```
+
+**批量操作**：
+```text
+> 在所有 .ts 文件中搜索 "TODO"
+> 将所有 .tsx 文件中的 "oldName" 替换为 "newName"（先预览）
 ```
 
 ### CLI 命令
@@ -208,6 +243,6 @@ MIT
 
 ---
 
-**版本**: 0.1.0  
+**版本**: 0.2.0  
 **Node.js**: >= 18.17  
 **维护**: 活跃开发中
