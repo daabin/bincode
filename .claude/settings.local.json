@@ -4,7 +4,22 @@
       "Bash(npm run:*)",
       "Bash(yarn build:*)",
       "Bash(pnpm build:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Read(//Users/daabin/.bincode/**)",
+      "Bash(node -e \"import\\('./dist/config.js'\\).then\\(m => console.log\\('API Key:', m.getApiKey\\(\\)?.slice\\(0, 10\\) + '...'\\)\\)\")",
+      "Bash(gtimeout 3 npm run dev)",
+      "Bash(npm install *)",
+      "Bash(chmod +x /Users/daabin/codinglab/bincode/examples/terminalRenderDemo.js)",
+      "Bash(node examples/terminalRenderDemo.js 2)",
+      "Bash(node examples/terminalRenderDemo.js 1)",
+      "Bash(chmod +x /Users/daabin/codinglab/bincode/examples/testMarkdownInCLI.js)",
+      "Bash(node /Users/daabin/codinglab/bincode/examples/testMarkdownInCLI.js)",
+      "Bash(chmod +x /Users/daabin/codinglab/bincode/examples/testAgentOutput.js)",
+      "Bash(node /Users/daabin/codinglab/bincode/examples/testAgentOutput.js)",
+      "Bash(rm -f src/*.backup src/markdown-new.tsx && ls -la *.md)"
+    ],
+    "additionalDirectories": [
+      "/Users/daabin/codinglab/bincode/src"
     ]
   }
 }
