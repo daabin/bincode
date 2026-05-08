@@ -1,4 +1,4 @@
-import { createChatCompletion } from './deepseek.js';
+import { createChatCompletionStream } from './deepseek.js';
 import { runTool, toolDefinitions } from './tools.js';
 import type { AgentConfig, AgentEvent, ChatMessage } from './types.js';
 
@@ -19,30 +19,45 @@ export class Agent {
     this.messages.push({ role: 'user', content: userInput });
 
     for (let iteration = 0; iteration < this.config.maxIterations; iteration += 1) {
-      const assistantMessage = await createChatCompletion({
+      let accumulatedContent = '';
+      let finalToolCalls: any[] | undefined;
+      let finalReasoning: string | undefined;
+
+      // 使用流式 API
+      for await (const chunk of createChatCompletionStream({
         apiKey: this.config.apiKey,
         baseUrl: this.config.baseUrl,
         model: this.config.model,
         messages: this.messages,
         tools: toolDefinitions
-      });
+      })) {
+        if (chunk.content) {
+          // 逐 token 输出内容
+          accumulatedContent += chunk.content;
+          yield { type: 'assistant', content: chunk.content };
+        }
 
-      this.messages.push({
-        role: 'assistant',
-        content: assistantMessage.content,
-        tool_calls: assistantMessage.tool_calls,
-        reasoning_content: assistantMessage.reasoning_content
-      });
-
-      if (assistantMessage.content) {
-        yield { type: 'assistant', content: assistantMessage.content };
+        if (chunk.done) {
+          finalToolCalls = chunk.tool_calls;
+          finalReasoning = chunk.reasoning_content;
+        }
       }
 
-      const toolCalls = assistantMessage.tool_calls ?? [];
+      // 保存完整的 assistant 消息
+      this.messages.push({
+        role: 'assistant',
+        content: accumulatedContent || null,
+        tool_calls: finalToolCalls,
+        reasoning_content: finalReasoning
+      });
+
+      // 如果没有工具调用，结束
+      const toolCalls = finalToolCalls ?? [];
       if (toolCalls.length === 0) {
         return;
       }
 
+      // 执行工具调用
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
         const args = parseToolArguments(toolCall.function.arguments);

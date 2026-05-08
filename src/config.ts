@@ -95,7 +95,7 @@ export function getModel(): string {
   return (
     process.env.DEEPSEEK_MODEL ||
     loadConfig().model ||
-    'deepseek-v4-flash'
+    'deepseek-v4-pro'
   );
 }
 

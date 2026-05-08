@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Box, render, Text, useApp, useInput } from 'ink';
 import { Agent } from './agent.js';
 import type { AgentEvent } from './types.js';
@@ -8,7 +8,7 @@ import { Markdown } from './markdown.js';
 
 type Line =
   | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string }
+  | { kind: 'assistant'; text: string; streaming?: boolean }
   | { kind: 'tool'; text: string }
   | { kind: 'error'; text: string }
   | { kind: 'system'; text: string };
@@ -168,9 +168,66 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
     setBusy(true);
     setLines(previous => [...previous, { kind: 'user', text: prompt }]);
 
+    // 用于累积 assistant 的内容
+    let assistantContent = '';
+    let assistantLineIndex = -1;
+
     try {
       for await (const event of agent.run(prompt)) {
-        setLines(previous => [...previous, eventToLine(event)]);
+        if (event.type === 'assistant') {
+          // 累积 assistant 内容
+          assistantContent += event.content;
+
+          if (assistantLineIndex === -1) {
+            // 首次收到 assistant 内容，创建新行
+            setLines(previous => {
+              assistantLineIndex = previous.length;
+              return [...previous, { kind: 'assistant', text: assistantContent, streaming: true }];
+            });
+          } else {
+            // 更新现有行（流式渲染）
+            setLines(previous => {
+              const newLines = [...previous];
+              newLines[assistantLineIndex] = {
+                kind: 'assistant',
+                text: assistantContent,
+                streaming: true
+              };
+              return newLines;
+            });
+          }
+        } else {
+          // 其他事件（tool_call, tool_result 等）
+          // 如果有正在流式的 assistant 内容，标记为完成
+          if (assistantLineIndex !== -1) {
+            setLines(previous => {
+              const newLines = [...previous];
+              newLines[assistantLineIndex] = {
+                kind: 'assistant',
+                text: assistantContent,
+                streaming: false
+              };
+              return newLines;
+            });
+            assistantLineIndex = -1;
+          }
+
+          // 添加工具调用/结果
+          setLines(previous => [...previous, eventToLine(event)]);
+        }
+      }
+
+      // 确保最后的 assistant 内容标记为完成
+      if (assistantLineIndex !== -1) {
+        setLines(previous => {
+          const newLines = [...previous];
+          newLines[assistantLineIndex] = {
+            kind: 'assistant',
+            text: assistantContent,
+            streaming: false
+          };
+          return newLines;
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -238,7 +295,7 @@ function LineView({ line }: { line: Line }) {
         <Text color="cyan" bold>
           you:{' '}
         </Text>
-        <Markdown>{line.text}</Markdown>
+        <Markdown streaming={false}>{line.text}</Markdown>
       </Box>
     );
   }
@@ -246,7 +303,7 @@ function LineView({ line }: { line: Line }) {
     return (
       <Box>
         <Text bold>agent: </Text>
-        <Markdown>{line.text}</Markdown>
+        <Markdown streaming={line.streaming ?? false}>{line.text}</Markdown>
       </Box>
     );
   }

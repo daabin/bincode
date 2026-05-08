@@ -1,52 +1,95 @@
 /**
  * Ink 适配的终端 Markdown 渲染器
  *
- * 将基于 marked 的终端渲染器输出适配到 Ink 组件
- * 支持代码高亮、GFM 扩展、表格等高级特性
+ * 支持流式增量渲染，实时显示 Agent 输出
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Text } from 'ink';
-import { renderMarkdownToTerminal } from './utils/terminalMarkdownRenderer.js';
+import {
+  renderMarkdownToTerminal,
+  createStreamingRenderer,
+  type TerminalMarkdownRenderer
+} from './utils/terminalMarkdownRenderer.js';
 
 export interface MarkdownProps {
   children: string;
+  streaming?: boolean;  // 是否正在流式输出
 }
 
 /**
  * Ink Markdown 组件
  *
- * 使用终端 Markdown 渲染器渲染内容，然后在 Ink 中显示
- *
  * 特性：
  * - 代码高亮（180+ 语言）
- * - GFM 扩展（表格、任务列表、删除线等）
+ * - GFM 扩展（表格、任务列表等）
+ * - 流式渲染支持
  * - 自动颜色支持
- * - HTML 安全转义（Agent 输出不转义）
- * - 性能优化（useMemo 缓存）
  */
-export function Markdown({ children }: MarkdownProps): JSX.Element {
-  // 使用终端渲染器渲染 Markdown
-  const rendered = React.useMemo(() => {
+export function Markdown({ children, streaming = false }: MarkdownProps): JSX.Element {
+  const rendererRef = useRef<TerminalMarkdownRenderer | null>(null);
+  const lastContentRef = useRef<string>('');
+  const [rendered, setRendered] = React.useState<string>('');
+
+  useEffect(() => {
     if (!children || children.trim().length === 0) {
-      return '';
+      setRendered('');
+      return;
     }
 
     try {
-      return renderMarkdownToTerminal(children, {
-        enableHighlight: true,
-        enableColor: true,
-        escapeHtml: false, // Agent 输出不需要转义
-        enableStreaming: false
-      });
+      if (streaming) {
+        // 流式模式：使用增量渲染
+        if (!rendererRef.current) {
+          rendererRef.current = createStreamingRenderer({
+            enableHighlight: true,
+            enableColor: true,
+            escapeHtml: false
+          });
+        }
+
+        // 计算新增的内容
+        const newContent = children.slice(lastContentRef.current.length);
+        if (newContent.length > 0) {
+          // 追加新内容并获取完整渲染结果
+          rendererRef.current.appendChunk(newContent);
+          const fullRendered = rendererRef.current.getRendered() ||
+                               rendererRef.current.getBuffer();
+          setRendered(fullRendered);
+          lastContentRef.current = children;
+        }
+      } else {
+        // 非流式模式：完整渲染
+        // 如果之前在流式模式，先完成渲染
+        if (rendererRef.current) {
+          const finalRendered = rendererRef.current.finalize();
+          setRendered(finalRendered);
+          rendererRef.current = null;
+          lastContentRef.current = '';
+        } else {
+          // 直接渲染完整内容
+          const result = renderMarkdownToTerminal(children, {
+            enableHighlight: true,
+            enableColor: true,
+            escapeHtml: false
+          });
+          setRendered(result);
+        }
+      }
     } catch (error) {
       console.error('[Markdown] Render error:', error);
-      return children; // 渲染失败时返回原始文本
+      setRendered(children); // 渲染失败时返回原始文本
     }
-  }, [children]);
+  }, [children, streaming]);
 
-  // Ink 中显示已渲染的内容
-  // 注意：渲染后的内容已经包含 ANSI 颜色代码和换行符
+  // 清理：组件卸载时重置
+  useEffect(() => {
+    return () => {
+      rendererRef.current = null;
+      lastContentRef.current = '';
+    };
+  }, []);
+
   return <Text>{rendered}</Text>;
 }
 
