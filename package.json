@@ -1,6 +1,6 @@
 {
   "name": "@daabin/bincode",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A powerful CLI code agent with multi-LLM support, code search, and intelligent tools",
   "author": "daabin",
   "license": "MIT",
