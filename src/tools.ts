@@ -54,15 +54,13 @@ export const toolDefinitions: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'edit_file',
-      description: 'Edit a specific part of a file by replacing old text with new text. More efficient than write_file for small changes. Supports replacing specific occurrence or all occurrences.',
+      description: 'Edit a specific part of a file by replacing old text with new text. More efficient than write_file for small changes.',
       parameters: {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'Path relative to the workspace root.' },
           old_text: { type: 'string', description: 'The exact text to find and replace. Must match exactly including whitespace.' },
-          new_text: { type: 'string', description: 'The new text to replace with.' },
-          replace_all: { type: 'boolean', description: 'If true, replace all occurrences. Default false (replace first occurrence).' },
-          occurrence: { type: 'number', description: 'Which occurrence to replace (1-based). If not specified and replace_all is false, replaces the first occurrence. Ignored if replace_all is true.' }
+          new_text: { type: 'string', description: 'The new text to replace with.' }
         },
         required: ['path', 'old_text', 'new_text'],
         additionalProperties: false
@@ -280,41 +278,21 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     const target = resolveWorkspacePath(cwd, stringArg(args, 'path'));
     const oldText = stringArg(args, 'old_text');
     const newText = stringArg(args, 'new_text');
-    const replaceAll = args.replace_all === true;
-    const occurrence = typeof args.occurrence === 'number' ? args.occurrence : 1;
 
     const content = await fs.readFile(target, 'utf8');
-    const regex = new RegExp(escapeRegExp(oldText), 'g');
-    const matches = content.match(regex);
-    const totalOccurrences = matches ? matches.length : 0;
+    const occurrences = (content.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
 
-    if (totalOccurrences === 0) {
+    if (occurrences === 0) {
       throw new Error(`Text not found in file. Make sure the old_text matches exactly including whitespace.`);
     }
 
-    let newContent: string;
-    let replacedCount: number;
-
-    if (replaceAll) {
-      // Replace all occurrences
-      newContent = content.replace(regex, newText);
-      replacedCount = totalOccurrences;
-    } else {
-      // Replace specific occurrence (1-based)
-      if (occurrence < 1 || occurrence > totalOccurrences) {
-        throw new Error(`Invalid occurrence ${occurrence}. File contains ${totalOccurrences} occurrence(s) of the text.`);
-      }
-
-      let count = 0;
-      newContent = content.replace(regex, (match) => {
-        count++;
-        return count === occurrence ? newText : match;
-      });
-      replacedCount = 1;
+    if (occurrences > 1) {
+      throw new Error(`Found ${occurrences} occurrences of old_text. Please be more specific to avoid ambiguity.`);
     }
 
+    const newContent = content.replace(oldText, newText);
     await fs.writeFile(target, newContent, 'utf8');
-    return `Replaced ${replacedCount} occurrence(s) in ${path.relative(cwd, target)} (found ${totalOccurrences} total).`;
+    return `Replaced 1 occurrence in ${path.relative(cwd, target)}.`;
   }
 
   if (name === 'list_directory') {
