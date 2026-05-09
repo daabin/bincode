@@ -1,241 +1,259 @@
 # bincode
 
-一个基于 CLI 的最小可行 code agent，技术栈是 TypeScript、Node.js、Ink 和 DeepSeek。
+一个强大的 CLI 代码智能助手，支持多 LLM Provider、代码搜索、智能工具和会话管理。
+
+[![npm version](https://img.shields.io/npm/v/@daabin/bincode.svg)](https://www.npmjs.com/package/@daabin/bincode)
+[![Node.js](https://img.shields.io/node/v/@daabin/bincode.svg)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/daabin/bincode/actions/workflows/ci.yml/badge.svg)](https://github.com/daabin/bincode/actions/workflows/ci.yml)
 
 ## 功能特性
 
-- 🎨 **交互式 CLI**：基于 Ink 的现代终端界面
-- 🤖 **DeepSeek Agent**：Chat Completions agent loop
-- 🔧 **完整工具集**：15+ 个强大工具
-  - 📁 **文件操作**：读写、编辑、删除、移动（8 个工具）
-  - 🔍 **代码搜索**：查找文件、搜索文本、批量替换（3 个工具）
-  - ⚙️ **命令执行**：运行测试、构建、检查（安全白名单）
-  - 🔄 **Git 集成**：status、diff、log（3 个工具）
-- 📝 **增强的 Markdown 渲染**
-  - ⚡ **流式渲染**：实时显示 Agent 输出，逐 token 渲染
-  - 🎨 代码高亮（180+ 语言）
-  - 📊 GFM 支持（表格、任务列表）
-  - 🛡️ 智能容错（处理不完整 Markdown）
-- 💾 **配置持久化**：无需每次设置 API Key
+### 🤖 多 LLM 支持
+- **DeepSeek** (默认) - 高性价比，中文友好
+- **OpenAI** - GPT-4o, GPT-4-turbo
+- **Anthropic** - Claude 3.5 Sonnet
+- **Ollama** - 本地模型，隐私优先
+
+### 🔧 20+ 智能工具
+| 类别 | 工具 |
+|------|------|
+| 📁 文件操作 | read, write, edit, delete, move, list, glob |
+| 🔍 代码搜索 | grep, search_files, code_search |
+| ⚡ 命令执行 | run_command (安全白名单) |
+| 🔄 Git 集成 | git_status, git_diff, git_log |
+| 🌐 Web 工具 | web_search, web_fetch |
+| 🖼️ 图片分析 | analyze_image (多模态) |
+| 📝 文档生成 | generate_docs |
+| 🔀 文件对比 | compare_files |
+
+### 📊 高级功能
+- **代码索引** - 符号搜索、语义查找
+- **代码补全** - AI 驱动的智能补全
+- **会话管理** - 持久化、导出 Markdown
+- **Token 监控** - 使用统计、成本追踪
+- **插件系统** - 自定义工具扩展
+- **MCP 协议** - Model Context Protocol 支持
+
+---
+
+## 安装
+
+### 方式一：npm 全局安装（推荐）
+
+```bash
+npm install -g @daabin/bincode
+bincode
+```
+
+### 方式二：npx 直接运行
+
+```bash
+npx @daabin/bincode
+```
+
+### 方式三：下载独立二进制
+
+从 [GitHub Releases](https://github.com/daabin/bincode/releases) 下载对应平台的可执行文件：
+
+| 平台 | 文件 |
+|------|------|
+| Linux x64 | `bincode-linux-x64.tar.gz` |
+| macOS Intel | `bincode-macos-x64.tar.gz` |
+| macOS Apple Silicon | `bincode-macos-arm64.tar.gz` |
+| Windows x64 | `bincode-windows-x64.zip` |
+
+```bash
+# Linux/macOS
+tar -xzf bincode-*.tar.gz
+chmod +x bincode
+./bincode
+
+# Windows
+# 解压后双击 bincode.exe 或在终端运行
+```
+
+### 方式四：从源码构建
+
+```bash
+git clone https://github.com/daabin/bincode.git
+cd bincode
+npm install
+npm run build
+npm link
+bincode
+```
+
+---
 
 ## 快速开始
 
-### 1. 安装依赖
-
-```bash
-npm install
-```
-
-### 2. 配置 API Key
+### 1. 配置 API Key
 
 **方式一：CLI 命令（推荐）**
 ```bash
-npm run dev
-# 输入: /setkey sk-your-api-key
+bincode
+> /setkey sk-your-api-key
 ```
 
 **方式二：环境变量**
 ```bash
 export DEEPSEEK_API_KEY="sk-your-api-key"
-npm run dev
-```
-
-> API Key 获取：https://platform.deepseek.com/api_keys
-
-### 3. 开始使用
-
-```bash
-npm run dev
-
-# 或构建后运行
-npm run build
-npm start
-
-# 全局安装
-npm link
 bincode
 ```
 
-## 使用示例
+**方式三：配置文件**
+```bash
+# 编辑 ~/.bincode/config.json
+{
+  "provider": "deepseek",
+  "apiKey": "sk-your-api-key",
+  "model": "deepseek-chat"
+}
+```
 
-### 基础对话
+### 2. 切换 LLM Provider
+
+```bash
+> /setprovider openai    # 使用 OpenAI
+> /setprovider anthropic # 使用 Claude
+> /setprovider ollama    # 使用本地模型
+> /setprovider deepseek  # 切回 DeepSeek
+```
+
+### 3. 开始使用
+
 ```text
 > 帮我查看 README.md 并优化文档结构
 > 在 src 目录里搜索 agent loop 的实现
-> 创建一个 notes/todo.md，写入今天的任务
-> 查找所有 .tsx 文件并分析代码结构
-```
-
-### 高级功能
-
-**文件操作**：
-```text
-> 列出 src 目录的内容（显示文件大小）
-> 将 src/config.ts 中的 'v4-pro' 改为 'v4-flash'
-> 同时读取 package.json 和 tsconfig.json
-> 重命名 src/old.ts 为 src/new.ts
-```
-
-**命令执行**：
-```text
 > 运行 npm test 看看测试是否通过
-> 运行 tsc --noEmit 检查类型错误
-> 运行 npm run build 构建项目
+> 分析 /path/to/image.png 这张图片
 ```
 
-**Git 集成**：
-```text
-> 查看 git 状态
-> 显示 src/tools.ts 的修改差异
-> 查看最近 5 次提交历史
-```
+---
 
-**批量操作**：
-```text
-> 在所有 .ts 文件中搜索 "TODO"
-> 将所有 .tsx 文件中的 "oldName" 替换为 "newName"（先预览）
-```
+## CLI 命令
 
-### CLI 命令
+| 命令 | 说明 |
+|------|------|
+| `/setkey <key>` | 保存 API Key |
+| `/setprovider <name>` | 切换 LLM Provider |
+| `/stats` | 查看 Token 使用统计 |
+| `/config` | 显示当前配置 |
+| `/clear` | 清空对话历史 |
+| `/exit` | 退出 CLI |
 
-- `/exit` - 退出 CLI
-- `/setkey <api-key>` - 保存 API Key
-- `Ctrl+C` - 强制退出
+---
 
 ## 环境变量
 
-| 变量 | 必填 | 默认值 | 说明 |
-|------|------|--------|------|
-| `DEEPSEEK_API_KEY` | 否* | — | DeepSeek API key |
-| `DEEPSEEK_MODEL` | 否 | `deepseek-v4-pro` | 模型名称 |
-| `DEEPSEEK_BASE_URL` | 否 | `https://api.deepseek.com` | API 基础地址 |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DEEPSEEK_API_KEY` | - | DeepSeek API Key |
+| `OPENAI_API_KEY` | - | OpenAI API Key |
+| `ANTHROPIC_API_KEY` | - | Anthropic API Key |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
+| `BINCODE_PROVIDER` | `deepseek` | 默认 Provider |
+| `BINCODE_MODEL` | - | 默认模型 |
 
-\* 可通过 `/setkey` 命令或配置文件设置
+---
 
-## 配置管理
+## 配置文件
 
 配置文件位置：`~/.bincode/config.json`
 
 ```json
 {
+  "provider": "deepseek",
   "apiKey": "sk-your-api-key",
-  "model": "deepseek-v4-pro",
-  "baseUrl": "https://api.deepseek.com"
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-chat",
+  "allowedCommands": ["npm", "node", "git"],
+  "deniedCommands": ["rm -rf /"]
 }
 ```
+
+---
+
+## 作为库使用
+
+```typescript
+import { Agent, createProvider, toolDefinitions } from '@daabin/bincode';
+
+// 创建 Agent
+const agent = new Agent({
+  provider: 'deepseek',
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  model: 'deepseek-chat'
+});
+
+// 运行对话
+for await (const event of agent.run('帮我分析这个项目')) {
+  if (event.type === 'content') {
+    process.stdout.write(event.delta);
+  }
+}
+
+// 使用代码索引
+import { indexWorkspace, searchSymbols } from '@daabin/bincode';
+const entries = indexWorkspace('./src');
+const results = searchSymbols(entries, 'Agent');
+```
+
+---
 
 ## 项目结构
 
 ```
 bincode/
 ├── src/
-│   ├── cli.tsx                 # Ink CLI 入口
-│   ├── agent.ts                # Agent 主循环
-│   ├── deepseek.ts             # DeepSeek API 封装
-│   ├── tools.ts                # 工具定义与执行
-│   ├── types.ts                # 类型定义
-│   ├── config.ts               # 配置管理
-│   ├── markdown.tsx            # Markdown 渲染（增强版）
-│   └── utils/
-│       └── terminalMarkdownRenderer.ts  # 终端渲染核心
-├── examples/
-│   └── terminalRenderDemo.js   # 渲染器功能演示
-├── package.json
-└── README.md
+│   ├── cli.tsx           # CLI 入口
+│   ├── agent.ts          # Agent 主循环
+│   ├── tools.ts          # 20+ 工具定义
+│   ├── llm/              # LLM Provider 实现
+│   │   ├── deepseek.ts
+│   │   ├── openai.ts
+│   │   ├── anthropic.ts
+│   │   └── ollama.ts
+│   ├── indexer.ts        # 代码索引
+│   ├── image.ts          # 图片分析
+│   ├── completion.ts     # 代码补全
+│   ├── plugin.ts         # 插件系统
+│   ├── mcp.ts            # MCP 协议
+│   └── session.ts        # 会话管理
+├── dist/                 # 编译输出
+└── package.json
 ```
 
-## Markdown 渲染特性
-
-项目使用专业的终端 Markdown 渲染器，支持：
-
-### 核心特性
-
-- ✅ **流式渲染**：Agent 输出实时显示，逐 token 渲染 Markdown
-- ✅ **代码高亮**：JavaScript、Python、TypeScript 等 180+ 语言
-- ✅ **GFM 扩展**：表格、任务列表、删除线、自动链接
-- ✅ **美观排版**：带边框的表格、彩色列表符号
-- ✅ **智能容错**：自动处理不完整的代码块和表格
-- ✅ **安全防护**：HTML 自动转义
-
-### 流式渲染效果
-
-与 Agent 对话时，你会看到：
-- 标题逐字出现
-- 代码块逐行渲染（带语法高亮）
-- 表格逐步构建（带完整边框）
-- 列表实时更新
-
-**体验差异**：
-- ❌ **旧方式**：等待完整内容 → 一次性显示
-- ✅ **新方式**：内容实时出现 → 流畅的打字机效果
-
-**渲染演示：**
-
-```bash
-# 运行 Markdown 渲染器演示
-node examples/terminalRenderDemo.js
-
-# 运行特定演示
-node examples/terminalRenderDemo.js 2  # 流式渲染
-```
-
-## 依赖说明
-
-### 核心依赖
-- `ink` - React 终端 UI 框架
-- `marked` + `marked-terminal` - Markdown 解析与渲染
-- `highlight.js` - 代码语法高亮
-- `chalk` - 终端颜色
-
-### 可选依赖
-- `ripgrep` - 加速文件搜索（推荐安装）
-  ```bash
-  # macOS
-  brew install ripgrep
-  
-  # Ubuntu/Debian
-  sudo apt install ripgrep
-  ```
+---
 
 ## 开发
 
 ```bash
-# 开发模式（热重载）
+# 安装依赖
+npm install
+
+# 开发模式
 npm run dev
+
+# 构建
+npm run build
+
+# 测试
+npm test
 
 # 类型检查
 npm run typecheck
 
-# 构建
-npm run build
+# 测试覆盖率
+npm run test:coverage
 ```
 
-## 故障排除
-
-### API Key 未设置
-
-```bash
-# 检查配置
-ls -la ~/.bincode/config.json
-
-# 重新设置
-npm run dev
-/setkey sk-your-api-key
-```
-
-### 终端颜色问题
-
-```bash
-# 禁用颜色
-NO_COLOR=1 npm run dev
-
-# 强制启用颜色
-FORCE_COLOR=1 npm run dev
-```
+---
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)
 
 ## 贡献
 

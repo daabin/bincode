@@ -3,8 +3,14 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.2.0)'
+        required: false
 
 jobs:
+  # Job 1: Publish to npm
   publish-npm:
     runs-on: ubuntu-latest
     
@@ -37,9 +43,26 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  # Job 2: Build standalone binaries for multiple platforms
   build-binaries:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     needs: publish-npm
+    
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+          - os: macos-latest
+            platform: macos
+            arch: x64
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+          - os: windows-latest
+            platform: windows
+            arch: x64
     
     steps:
       - name: Checkout repository
@@ -57,21 +80,96 @@ jobs:
       - name: Build
         run: npm run build
       
-      - name: Package for distribution
-        run: |
-          mkdir -p dist/package
-          cp -r dist/*.js dist/package/
-          cp package.json dist/package/
-          cp README.md dist/package/
-          cp LICENSE dist/package/
-          tar -czvf bincode-linux-x64.tar.gz -C dist/package .
+      - name: Install pkg
+        run: npm install -g @yao-pkg/pkg
       
-      - name: Upload release asset
+      - name: Build binary (Unix)
+        if: matrix.platform != 'windows'
+        run: |
+          mkdir -p release
+          npx pkg package.json --targets node20-${{ matrix.platform }}-${{ matrix.arch }} --output release/bincode
+          chmod +x release/bincode
+          tar -czvf bincode-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz -C release .
+      
+      - name: Build binary (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          mkdir release
+          npx pkg package.json --targets node20-${{ matrix.platform }}-${{ matrix.arch }} --output release/bincode.exe
+          cd release && 7z a ../bincode-${{ matrix.platform }}-${{ matrix.arch }}.zip *
+      
+      - name: Upload release asset (Unix)
+        if: matrix.platform != 'windows'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./bincode-linux-x64.tar.gz
-          asset_name: bincode-linux-x64.tar.gz
+          asset_path: ./bincode-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+          asset_name: bincode-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
           asset_content_type: application/gzip
+      
+      - name: Upload release asset (Windows)
+        if: matrix.platform == 'windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./bincode-${{ matrix.platform }}-${{ matrix.arch }}.zip
+          asset_name: bincode-${{ matrix.platform }}-${{ matrix.arch }}.zip
+          asset_content_type: application/zip
+
+  # Job 3: Create Homebrew formula (macOS)
+  create-homebrew-formula:
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    if: github.event.release
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Generate Homebrew formula
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          
+          cat > bincode.rb << 'EOF'
+          class Bincode < Formula
+            desc "A powerful CLI code agent with multi-LLM support"
+            homepage "https://github.com/daabin/bincode"
+            version "#{VERSION}"
+            license "MIT"
+            
+            on_macos do
+              on_intel do
+                url "https://github.com/daabin/bincode/releases/download/v#{VERSION}/bincode-macos-x64.tar.gz"
+                sha256 "TODO: Calculate after first release"
+              end
+              on_arm do
+                url "https://github.com/daabin/bincode/releases/download/v#{VERSION}/bincode-macos-arm64.tar.gz"
+                sha256 "TODO: Calculate after first release"
+              end
+            end
+            
+            def install
+              bin.install "bincode"
+            end
+            
+            test do
+              assert_match "bincode", shell_output("#{bin}/bincode --version 2>&1 || true")
+            end
+          end
+          EOF
+          
+          echo "Homebrew formula created. Manual steps required:"
+          echo "1. Fork homebrew-tap repository"
+          echo "2. Add this formula to Formula/bincode.rb"
+          echo "3. Update SHA256 hashes after first release"
+      
+      - name: Upload formula artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula
+          path: bincode.rb

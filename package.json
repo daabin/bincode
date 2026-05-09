@@ -1,20 +1,56 @@
 {
-  "name": "bincode",
+  "name": "@daabin/bincode",
   "version": "0.2.0",
-  "private": true,
+  "description": "A powerful CLI code agent with multi-LLM support, code search, and intelligent tools",
+  "author": "daabin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daabin/bincode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/daabin/bincode/issues"
+  },
+  "homepage": "https://github.com/daabin/bincode#readme",
+  "keywords": [
+    "cli",
+    "code-agent",
+    "ai",
+    "llm",
+    "deepseek",
+    "openai",
+    "anthropic",
+    "code-assistant",
+    "terminal"
+  ],
   "type": "module",
   "bin": {
     "bincode": "./dist/cli.js"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run fix-shebang",
+    "fix-shebang": "node -e \"const fs=require('fs'); const f='dist/cli.js'; const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!')) fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\"",
     "dev": "tsx src/cli.tsx",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "chalk": "^5.6.2",
@@ -37,5 +73,19 @@
   },
   "engines": {
     "node": ">=18.17"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "node_modules/marked-terminal/**/*.js",
+      "node_modules/highlight.js/styles/*.css"
+    ],
+    "targets": [
+      "node20-linux-x64",
+      "node20-macos-x64",
+      "node20-macos-arm64",
+      "node20-win-x64"
+    ],
+    "outputPath": "release"
   }
 }

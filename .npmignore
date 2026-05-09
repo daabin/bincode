@@ -1,0 +1,46 @@
+# Source files
+src/
+*.ts
+*.tsx
+!*.d.ts
+
+# Config files
+tsconfig.json
+vitest.config.ts
+.eslintrc*
+.prettierrc*
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+coverage/
+.nyc_output/
+
+# Development files
+.github/
+.vscode/
+.idea/
+*.log
+*.swp
+*.swo
+.DS_Store
+
+# Examples
+examples/
+
+# Docs (keep README.md and LICENSE)
+docs/
+*.md
+!README.md
+!LICENSE
+!CHANGELOG.md
+
+# Build artifacts
+*.tgz
+node_modules/
+
+# Temporary files
+tmp/
+temp/
