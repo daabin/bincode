@@ -23,7 +23,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
   const [lines, setLines] = useState<Line[]>([
     { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
     { kind: 'system', text: `Current provider: ${currentProvider}` },
-    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /clear' }
+    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider>' }
   ]);
   const [agent, setAgent] = useState<Agent | null>(() => {
     const apiKey = getApiKey();
@@ -181,41 +181,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
         }
         return;
       }
-
-      if (trimmed === '/stats') {
-        void (async () => {
-          const { globalTokenCounter } = await import('./tokens.js');
-          const total = globalTokenCounter.getTotalUsage();
-          const today = globalTokenCounter.getTodayUsage();
-          const records = globalTokenCounter.getRecords(5);
-
-          setLines(previous => [
-            ...previous,
-            { kind: 'user', text: '/stats' },
-            { kind: 'system', text: '📊 Token Usage Statistics' },
-            { kind: 'system', text: '' },
-            { kind: 'system', text: `Total: ${total.totalTokens.toLocaleString()} tokens (${total.promptTokens.toLocaleString()} prompt + ${total.completionTokens.toLocaleString()} completion)` },
-            { kind: 'system', text: `Today: ${today.totalTokens.toLocaleString()} tokens` },
-            { kind: 'system', text: '' },
-            { kind: 'system', text: `Recent requests (${records.length} shown):` },
-            ...records.map(r => ({
-              kind: 'system' as const,
-              text: `  ${new Date(r.timestamp).toLocaleString()} - ${r.provider}/${r.model}: ${r.usage.totalTokens} tokens`
-            }))
-          ]);
-        })();
-        return;
-      }
-
-      if (trimmed === '/clear') {
-        setLines([
-          { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
-          { kind: 'system', text: `Current provider: ${getProvider()}` },
-          { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /clear' }
-        ]);
-        return;
-      }
-
       if (trimmed.length > 0) {
         void submit(trimmed);
       }
