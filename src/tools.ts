@@ -374,23 +374,6 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'generate_docs',
-      description: 'Generate documentation for code files. Can generate JSDoc/TSDoc comments, README sections, or API documentation.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'File or directory path to generate docs for.' },
-          type: { type: 'string', enum: ['jsdoc', 'readme', 'api'], description: 'Type of documentation to generate. Default: jsdoc' },
-          output: { type: 'string', description: 'Output file path (optional, defaults to stdout)' }
-        },
-        required: ['path'],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
       name: 'search_and_replace',
       description: 'Search and replace text across multiple files matching a pattern.',
       parameters: {
@@ -739,103 +722,6 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
       return limitOutput(content);
     } catch (error) {
       throw new Error(`Web fetch failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  if (name === 'generate_docs') {
-    const targetPath = resolveWorkspacePath(cwd, stringArg(args, 'path'));
-    const docType = typeof args.type === 'string' ? args.type : 'jsdoc';
-    const outputPath = typeof args.output === 'string' ? resolveWorkspacePath(cwd, args.output) : null;
-
-    try {
-      const stat = await fs.stat(targetPath);
-      const files: string[] = [];
-
-      if (stat.isDirectory()) {
-        // Find all TypeScript/JavaScript files
-        const findFiles = async (dir: string): Promise<void> => {
-          const entries = await fs.readdir(dir, { withFileTypes: true });
-          for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-              await findFiles(fullPath);
-            } else if (entry.isFile() && /\.(ts|tsx|js|jsx)$/.test(entry.name)) {
-              files.push(fullPath);
-            }
-          }
-        };
-        await findFiles(targetPath);
-      } else if (stat.isFile()) {
-        files.push(targetPath);
-      }
-
-      if (files.length === 0) {
-        return 'No source files found to document.';
-      }
-
-      const docs: string[] = [];
-
-      for (const file of files) {
-        const content = await fs.readFile(file, 'utf8');
-        const relativePath = path.relative(cwd, file);
-
-        if (docType === 'jsdoc') {
-          // Extract functions and classes for JSDoc generation
-          const functionMatches = content.matchAll(/(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g);
-          const classMatches = content.matchAll(/(?:export\s+)?class\s+(\w+)/g);
-          const interfaceMatches = content.matchAll(/(?:export\s+)?interface\s+(\w+)/g);
-
-          const items: string[] = [];
-
-          for (const match of functionMatches) {
-            const fnName = match[1];
-            const params = match[2];
-            items.push(`/**
- * ${fnName}
- * @param {any} params - Function parameters
- * @returns {any} Return value
- */`);
-          }
-
-          for (const match of classMatches) {
-            items.push(`/**
- * ${match[1]} class
- * @class
- */`);
-          }
-
-          for (const match of interfaceMatches) {
-            items.push(`/**
- * ${match[1]} interface
- * @interface
- */`);
-          }
-
-          if (items.length > 0) {
-            docs.push(`// ${relativePath}\n${items.join('\n\n')}\n`);
-          }
-        } else if (docType === 'readme') {
-          docs.push(`## ${path.basename(file, path.extname(file))}\n\nSource: \`${relativePath}\`\n`);
-        } else if (docType === 'api') {
-          // Extract exported functions for API documentation
-          const exportMatches = content.matchAll(/export\s+(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g);
-          
-          for (const match of exportMatches) {
-            docs.push(`### ${match[1]}\n\n\`\`\`typescript\n${match[0]}\n\`\`\`\n`);
-          }
-        }
-      }
-
-      const result = docs.join('\n---\n\n');
-
-      if (outputPath) {
-        await fs.writeFile(outputPath, result, 'utf8');
-        return `Documentation generated: ${path.relative(cwd, outputPath)}`;
-      }
-
-      return limitOutput(result || 'No documentation generated.');
-    } catch (error) {
-      throw new Error(`Documentation generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
