@@ -23,7 +23,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
   const [lines, setLines] = useState<Line[]>([
     { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
     { kind: 'system', text: `Current provider: ${currentProvider}` },
-    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
+    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /clear' }
   ]);
   const [agent, setAgent] = useState<Agent | null>(() => {
     const apiKey = getApiKey();
@@ -211,21 +211,8 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
         setLines([
           { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
           { kind: 'system', text: `Current provider: ${getProvider()}` },
-          { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
+          { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /clear' }
         ]);
-        return;
-      }
-
-      if (trimmed === '/config') {
-        void (async () => {
-          const { showConfig } = await import('./configWatcher.js');
-          const configInfo = showConfig();
-          setLines(previous => [
-            ...previous,
-            { kind: 'user', text: '/config' },
-            { kind: 'system', text: configInfo }
-          ]);
-        })();
         return;
       }
 
