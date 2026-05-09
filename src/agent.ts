@@ -1,5 +1,4 @@
-import { createProvider, type ProviderType } from './llm/index.js';
-import type { LLMProvider } from './llm/types.js';
+import { createChatCompletionStream } from './deepseek.js';
 import { runTool, toolDefinitions } from './tools.js';
 import type { AgentConfig, AgentEvent, ChatMessage } from './types.js';
 
@@ -11,14 +10,9 @@ Never attempt to access paths outside the workspace.`;
 
 export class Agent {
   private readonly messages: ChatMessage[];
-  private readonly provider: LLMProvider;
 
-  constructor(private readonly config: AgentConfig & { provider?: ProviderType }) {
+  constructor(private readonly config: AgentConfig) {
     this.messages = [{ role: 'system', content: systemPrompt }];
-    this.provider = createProvider(config.provider || 'deepseek', {
-      name: config.provider || 'deepseek',
-      apiKey: config.apiKey
-    });
   }
 
   async *run(userInput: string): AsyncGenerator<AgentEvent> {
@@ -30,7 +24,7 @@ export class Agent {
       let finalReasoning: string | undefined;
 
       // 使用流式 API
-      for await (const chunk of this.provider.createChatCompletionStream({
+      for await (const chunk of createChatCompletionStream({
         apiKey: this.config.apiKey,
         baseUrl: this.config.baseUrl,
         model: this.config.model,

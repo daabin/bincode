@@ -107,7 +107,7 @@ describe('config', () => {
     it('should return default model', () => {
       delete process.env.DEEPSEEK_MODEL;
       const model = getModel();
-      expect(model).toBe('deepseek-chat');
+      expect(model).toBe('deepseek-v4-pro');
     });
 
     it('should return environment variable when set', () => {

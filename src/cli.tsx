@@ -3,8 +3,7 @@ import React, { useState, useRef } from 'react';
 import { Box, render, Text, useApp, useInput } from 'ink';
 import { Agent } from './agent.js';
 import type { AgentEvent } from './types.js';
-import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath, getProvider, setProvider } from './config.js';
-import { detectAvailableProviders, type ProviderType } from './llm/index.js';
+import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath } from './config.js';
 import { Markdown } from './markdown.js';
 
 type Line =
@@ -19,44 +18,35 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
   const [input, setInput] = useState('');
   const [cursor, setCursor] = useState(0);
   const [busy, setBusy] = useState(false);
-  const currentProvider = getProvider();
   const [lines, setLines] = useState<Line[]>([
     { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
-    { kind: 'system', text: `Current provider: ${currentProvider}` },
-    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider>' }
+    { kind: 'system', text: 'Commands: /setkey <api-key> - Save your DeepSeek API key' }
   ]);
   const [agent, setAgent] = useState<Agent | null>(() => {
     const apiKey = getApiKey();
-    const provider = getProvider();
-    
-    // Ollama doesn't require API key
-    if (!apiKey && provider !== 'ollama') {
+    if (!apiKey) {
       return null;
     }
 
     return new Agent({
       cwd: process.cwd(),
-      apiKey: apiKey || '',
+      apiKey,
       baseUrl: getBaseUrl(),
       model: getModel(),
-      provider,
       maxIterations: 30
     });
   });
 
   React.useEffect(() => {
     if (!agent) {
-      const provider = getProvider();
       setLines(previous => [
         ...previous,
-        { kind: 'error', text: `Missing API key for provider: ${provider}` },
-        { kind: 'system', text: `Please set it via:` },
-        { kind: 'system', text: `  1. Type: /setkey <your-api-key>` },
-        { kind: 'system', text: `  2. Or set environment variable` },
+        { kind: 'error', text: `Missing DEEPSEEK_API_KEY. Please set it via:` },
+        { kind: 'system', text: `  1. Type: /setkey sk-your-api-key` },
+        { kind: 'system', text: `  2. Or set environment variable: export DEEPSEEK_API_KEY="sk-..."` },
         { kind: 'system', text: `  3. Or edit config file: ${getConfigPath()}` },
         { kind: 'system', text: `` },
-        { kind: 'system', text: `Supported providers: deepseek, openai, anthropic, ollama` },
-        { kind: 'system', text: `Use /setprovider <provider> to switch providers` }
+        { kind: 'system', text: `Get your API key at: https://platform.deepseek.com/api_keys` }
       ]);
       return;
     }
@@ -90,14 +80,12 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
         if (newApiKey.length > 0) {
           try {
             setApiKey(newApiKey);
-            const provider = getProvider();
             // 重新初始化 agent
             const newAgent = new Agent({
               cwd: process.cwd(),
               apiKey: newApiKey,
               baseUrl: getBaseUrl(),
               model: getModel(),
-              provider,
               maxIterations: 30
             });
             setAgent(newAgent);
@@ -105,7 +93,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
               ...previous,
               { kind: 'user', text: '/setkey ***' },
               { kind: 'system', text: `✓ API key saved to ${getConfigPath()}` },
-              { kind: 'system', text: `✓ Provider: ${provider}` },
               { kind: 'system', text: '✓ Agent initialized successfully. You can start chatting now!' }
             ]);
           } catch (error) {
@@ -121,62 +108,8 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
             ...previous,
             { kind: 'user', text: trimmed },
             { kind: 'error', text: 'Usage: /setkey <your-api-key>' },
-            { kind: 'system', text: 'Example: /setkey sk-abc123...' }
-          ]);
-        }
-        return;
-      }
-
-      if (trimmed.startsWith('/setprovider ')) {
-        const newProvider = trimmed.slice(13).trim() as ProviderType;
-        const validProviders = ['deepseek', 'openai', 'anthropic', 'ollama', 'custom'];
-        
-        if (validProviders.includes(newProvider)) {
-          try {
-            setProvider(newProvider);
-            const apiKey = getApiKey();
-            
-            // Ollama doesn't require API key
-            if (!apiKey && newProvider !== 'ollama') {
-              setAgent(null);
-              setLines(previous => [
-                ...previous,
-                { kind: 'user', text: trimmed },
-                { kind: 'system', text: `✓ Provider switched to: ${newProvider}` },
-                { kind: 'error', text: `Please set API key for ${newProvider} using /setkey` }
-              ]);
-            } else {
-              const newAgent = new Agent({
-                cwd: process.cwd(),
-                apiKey: apiKey || '',
-                baseUrl: getBaseUrl(),
-                model: getModel(),
-                provider: newProvider,
-                maxIterations: 30
-              });
-              setAgent(newAgent);
-              setLines(previous => [
-                ...previous,
-                { kind: 'user', text: trimmed },
-                { kind: 'system', text: `✓ Provider switched to: ${newProvider}` },
-                { kind: 'system', text: `✓ Model: ${getModel()}` },
-                { kind: 'system', text: '✓ Agent initialized successfully!' }
-              ]);
-            }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            setLines(previous => [
-              ...previous,
-              { kind: 'user', text: trimmed },
-              { kind: 'error', text: `Failed to switch provider: ${message}` }
-            ]);
-          }
-        } else {
-          setLines(previous => [
-            ...previous,
-            { kind: 'user', text: trimmed },
-            { kind: 'error', text: `Invalid provider: ${newProvider}` },
-            { kind: 'system', text: `Valid providers: ${validProviders.join(', ')}` }
+            { kind: 'system', text: 'Example: /setkey sk-abc123...' },
+            { kind: 'system', text: 'Get your key at: https://platform.deepseek.com/api_keys' }
           ]);
         }
         return;
