@@ -1,12 +1,5 @@
 import type { ChatMessage, ToolDefinition, ToolCall } from '../types.js';
 import type { LLMProvider } from './types.js';
-import { 
-  withRetry, 
-  fetchWithTimeout, 
-  createAPIErrorFromResponse, 
-  createAPIErrorFromNetworkError,
-  type APIError 
-} from '../retry.js';
 
 type DeepSeekResponse = {
   choices?: Array<{
@@ -57,41 +50,27 @@ export class DeepSeekProvider implements LLMProvider {
     reasoning_content?: string;
     done: boolean;
   }> {
-    const response = await withRetry(
-      async () => {
-        const res = await fetchWithTimeout(
-          `${options.baseUrl.replace(/\/$/, '')}/chat/completions`,
-          {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              authorization: `Bearer ${options.apiKey}`
-            },
-            body: JSON.stringify({
-              model: options.model,
-              messages: options.messages,
-              tools: options.tools,
-              tool_choice: 'auto',
-              temperature: 0.2,
-              max_tokens: 4096,
-              stream: true
-            })
-          },
-          60000 // 60 second timeout for streaming start
-        );
-
-        if (!res.ok) {
-          const errorBody = await res.json().catch(() => ({}));
-          throw createAPIErrorFromResponse(res, errorBody as DeepSeekResponse);
-        }
-
-        return res;
+    const response = await fetch(`${options.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${options.apiKey}`
       },
-      { maxRetries: 3 },
-      (attempt, error, delayMs) => {
-        console.error(`[DeepSeek] Attempt ${attempt} failed: ${error.message}. Retrying in ${delayMs}ms...`);
-      }
-    );
+      body: JSON.stringify({
+        model: options.model,
+        messages: options.messages,
+        tools: options.tools,
+        tool_choice: 'auto',
+        temperature: 0.2,
+        max_tokens: 4096,
+        stream: true
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error((error as DeepSeekResponse).error?.message ?? `DeepSeek request failed: ${response.status}`);
+    }
 
     if (!response.body) {
       throw new Error('Response body is null');
@@ -203,49 +182,37 @@ export class DeepSeekProvider implements LLMProvider {
     messages: ChatMessage[];
     tools: ToolDefinition[];
   }): Promise<{ content: string | null; tool_calls?: ToolCall[]; reasoning_content?: string }> {
-    return withRetry(
-      async () => {
-        const response = await fetchWithTimeout(
-          `${options.baseUrl.replace(/\/$/, '')}/chat/completions`,
-          {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              authorization: `Bearer ${options.apiKey}`
-            },
-            body: JSON.stringify({
-              model: options.model,
-              messages: options.messages,
-              tools: options.tools,
-              tool_choice: 'auto',
-              temperature: 0.2,
-              max_tokens: 4096
-            })
-          },
-          30000 // 30 second timeout
-        );
-
-        const payload = (await response.json().catch(() => ({}))) as DeepSeekResponse;
-
-        if (!response.ok) {
-          throw createAPIErrorFromResponse(response, payload);
-        }
-
-        const message = payload.choices?.[0]?.message;
-        if (!message) {
-          throw new Error('DeepSeek response did not include a message.');
-        }
-
-        return {
-          content: message.content ?? null,
-          tool_calls: message.tool_calls,
-          reasoning_content: message.reasoning_content
-        };
+    const response = await fetch(`${options.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${options.apiKey}`
       },
-      { maxRetries: 3 },
-      (attempt, error, delayMs) => {
-        console.error(`[DeepSeek] Attempt ${attempt} failed: ${error.message}. Retrying in ${delayMs}ms...`);
-      }
-    );
+      body: JSON.stringify({
+        model: options.model,
+        messages: options.messages,
+        tools: options.tools,
+        tool_choice: 'auto',
+        temperature: 0.2,
+        max_tokens: 4096
+      })
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as DeepSeekResponse;
+
+    if (!response.ok) {
+      throw new Error(payload.error?.message ?? `DeepSeek request failed: ${response.status}`);
+    }
+
+    const message = payload.choices?.[0]?.message;
+    if (!message) {
+      throw new Error('DeepSeek response did not include a message.');
+    }
+
+    return {
+      content: message.content ?? null,
+      tool_calls: message.tool_calls,
+      reasoning_content: message.reasoning_content
+    };
   }
 }
