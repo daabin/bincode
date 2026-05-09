@@ -92,4 +92,3 @@ export function Markdown({ children, streaming = false }: MarkdownProps): JSX.El
 
   return <Text>{rendered}</Text>;
 }
-

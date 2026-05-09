@@ -2,21 +2,10 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { ToolDefinition } from './types.js';
+import { isCommandAllowed, getAllowedCommands } from './config.js';
 
 const ignoredDirs = new Set(['.git', 'node_modules', 'dist']);
 const rgIgnoreArgs = ['-g', '!node_modules/**', '-g', '!dist/**', '-g', '!.git/**'];
-
-// 允许的命令白名单
-const ALLOWED_COMMANDS = new Set([
-  'npm', 'yarn', 'pnpm', 'bun',
-  'node', 'tsx', 'ts-node', 'deno',
-  'git',
-  'eslint', 'tsc', 'prettier',
-  'cat', 'ls', 'pwd', 'echo', 'which',
-  'python', 'python3', 'pip',
-  'cargo', 'rustc',
-  'go', 'java', 'javac'
-]);
 
 export const toolDefinitions: ToolDefinition[] = [
   {
@@ -54,15 +43,15 @@ export const toolDefinitions: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'edit_file',
-      description: 'Edit a specific part of a file by replacing old text with new text. More efficient than write_file for small changes.',
+      description: 'Edit a specific part of a file by replacing old text with new text. More efficient than write_file for small changes. Supports replacing specific occurrence or all occurrences.',
       parameters: {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'Path relative to the workspace root.' },
           old_text: { type: 'string', description: 'The exact text to find and replace. Must match exactly including whitespace.' },
           new_text: { type: 'string', description: 'The new text to replace with.' },
-          replace_all: { type: 'boolean', description: 'Replace all occurrences. Default false.' },
-          occurrence: { type: 'number', description: 'Replace a specific occurrence (1-indexed).' }
+          replace_all: { type: 'boolean', description: 'If true, replace all occurrences. Default false (replace first occurrence).' },
+          occurrence: { type: 'number', description: 'Which occurrence to replace (1-based). If not specified and replace_all is false, replaces the first occurrence. Ignored if replace_all is true.' }
         },
         required: ['path', 'old_text', 'new_text'],
         additionalProperties: false
@@ -242,6 +231,216 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     type: 'function',
     function: {
+      name: 'git_branch',
+      description: 'List, create, or delete git branches.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'create', 'delete', 'current'], description: 'Action to perform: list, create, delete, or get current branch.' },
+          name: { type: 'string', description: 'Branch name for create or delete actions.' },
+          all: { type: 'boolean', description: 'List all branches including remote. Default false.' }
+        },
+        required: ['action'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_checkout',
+      description: 'Switch branches or restore working tree files.',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'Branch name to switch to, or file path to restore.' },
+          create_branch: { type: 'boolean', description: 'Create a new branch and switch to it. Default false.' }
+        },
+        required: ['target'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_commit',
+      description: 'Create a git commit with the staged changes. Can generate commit message from diff.',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: { type: 'string', description: 'Commit message. If not provided, will show staged changes.' },
+          all: { type: 'boolean', description: 'Automatically stage modified and deleted files. Default false.' }
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_add',
+      description: 'Stage file changes for commit.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File or directory path to stage. Use "." for all changes.' }
+        },
+        required: ['path'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_stash',
+      description: 'Stash or unstash changes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['push', 'pop', 'list', 'drop'], description: 'Stash action to perform.' },
+          message: { type: 'string', description: 'Message for stash push.' }
+        },
+        required: ['action'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_blame',
+      description: 'Show blame information for a file.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path to show blame for.' }
+        },
+        required: ['path'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'compare_files',
+      description: 'Compare two files and show differences. Supports unified diff format.',
+      parameters: {
+        type: 'object',
+        properties: {
+          file1: { type: 'string', description: 'Path to first file.' },
+          file2: { type: 'string', description: 'Path to second file.' },
+          ignore_whitespace: { type: 'boolean', description: 'Ignore whitespace differences. Default false.' }
+        },
+        required: ['file1', 'file2'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'web_search',
+      description: 'Search the web for information using a search query. Returns a list of results with titles, URLs, and snippets.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query.' },
+          limit: { type: 'number', description: 'Maximum number of results to return. Default 5.' }
+        },
+        required: ['query'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'web_fetch',
+      description: 'Fetch content from a URL and return the text content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL to fetch.' },
+          selector: { type: 'string', description: 'Optional CSS selector to extract specific content.' }
+        },
+        required: ['url'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_docs',
+      description: 'Generate documentation for code files. Can generate JSDoc/TSDoc comments, README sections, or API documentation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File or directory path to generate docs for.' },
+          type: { type: 'string', enum: ['jsdoc', 'readme', 'api'], description: 'Type of documentation to generate. Default: jsdoc' },
+          output: { type: 'string', description: 'Output file path (optional, defaults to stdout)' }
+        },
+        required: ['path'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'analyze_image',
+      description: 'Analyze an image file. Returns format, dimensions, size, and base64 data for multimodal LLM processing.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the image file (PNG, JPG, WebP, GIF, BMP).' }
+        },
+        required: ['path'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'code_search',
+      description: 'Search code symbols (functions, classes, interfaces) by name. Builds an index of the workspace for fast symbol lookup.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Symbol name or search query.' },
+          kind: { type: 'string', enum: ['function', 'class', 'interface', 'type', 'enum', 'variable'], description: 'Filter by symbol kind.' },
+          language: { type: 'string', description: 'Filter by programming language.' },
+          limit: { type: 'number', description: 'Max results. Default 10.' }
+        },
+        required: ['query'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'code_complete',
+      description: 'Get AI-powered code completion at a specific location in a file.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path.' },
+          line: { type: 'number', description: 'Cursor line number (1-based).' },
+          column: { type: 'number', description: 'Cursor column number (1-based).' }
+        },
+        required: ['path', 'line', 'column'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'search_and_replace',
       description: 'Search and replace text across multiple files matching a pattern.',
       parameters: {
@@ -281,58 +480,40 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     const oldText = stringArg(args, 'old_text');
     const newText = stringArg(args, 'new_text');
     const replaceAll = args.replace_all === true;
-    const occurrence = typeof args.occurrence === 'number' ? args.occurrence : undefined;
+    const occurrence = typeof args.occurrence === 'number' ? args.occurrence : 1;
 
     const content = await fs.readFile(target, 'utf8');
-    const totalOccurrences = (content.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
+    const regex = new RegExp(escapeRegExp(oldText), 'g');
+    const matches = content.match(regex);
+    const totalOccurrences = matches ? matches.length : 0;
 
     if (totalOccurrences === 0) {
       throw new Error(`Text not found in file. Make sure the old_text matches exactly including whitespace.`);
     }
 
     let newContent: string;
+    let replacedCount: number;
 
-    if (occurrence !== undefined) {
-      // Replace specific occurrence (1-indexed)
+    if (replaceAll) {
+      // Replace all occurrences
+      newContent = content.replace(regex, newText);
+      replacedCount = totalOccurrences;
+    } else {
+      // Replace specific occurrence (1-based)
       if (occurrence < 1 || occurrence > totalOccurrences) {
-        throw new Error(`Invalid occurrence ${occurrence}. Valid range: 1 to ${totalOccurrences}.`);
+        throw new Error(`Invalid occurrence ${occurrence}. File contains ${totalOccurrences} occurrence(s) of the text.`);
       }
 
-      const escaped = escapeRegExp(oldText);
-      const regex = new RegExp(escaped, 'g');
       let count = 0;
       newContent = content.replace(regex, (match) => {
         count++;
         return count === occurrence ? newText : match;
       });
-      await fs.writeFile(target, newContent, 'utf8');
-      return `Replaced 1 occurrence in ${path.relative(cwd, target)}.`;
+      replacedCount = 1;
     }
 
-    if (replaceAll) {
-      const escaped = escapeRegExp(oldText);
-      const regex = new RegExp(escaped, 'g');
-      newContent = content.replace(regex, newText);
-      await fs.writeFile(target, newContent, 'utf8');
-      return `Replaced ${totalOccurrences} occurrence(s) in ${path.relative(cwd, target)}.`;
-    }
-
-    // Default: replace first occurrence only
-    if (totalOccurrences > 1) {
-      const escaped = escapeRegExp(oldText);
-      const regex = new RegExp(escaped, 'g');
-      let count = 0;
-      newContent = content.replace(regex, (match) => {
-        count++;
-        return count === 1 ? newText : match;
-      });
-      await fs.writeFile(target, newContent, 'utf8');
-      return `Replaced 1 occurrence in ${path.relative(cwd, target)}. found ${totalOccurrences} total.`;
-    }
-
-    newContent = content.replace(oldText, newText);
     await fs.writeFile(target, newContent, 'utf8');
-    return `Replaced 1 occurrence in ${path.relative(cwd, target)}.`;
+    return `Replaced ${replacedCount} occurrence(s) in ${path.relative(cwd, target)} (found ${totalOccurrences} total).`;
   }
 
   if (name === 'list_directory') {
@@ -442,6 +623,272 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     }
   }
 
+  if (name === 'compare_files') {
+    const file1 = resolveWorkspacePath(cwd, stringArg(args, 'file1'));
+    const file2 = resolveWorkspacePath(cwd, stringArg(args, 'file2'));
+    const ignoreWhitespace = args.ignore_whitespace === true;
+
+    const content1 = await fs.readFile(file1, 'utf8');
+    const content2 = await fs.readFile(file2, 'utf8');
+
+    const lines1 = content1.split('\n');
+    const lines2 = content2.split('\n');
+
+    // Simple diff algorithm
+    const diff: string[] = [];
+    diff.push(`--- ${path.relative(cwd, file1)}`);
+    diff.push(`+++ ${path.relative(cwd, file2)}`);
+
+    const maxLines = Math.max(lines1.length, lines2.length);
+    let inDiff = false;
+    let diffStart = 0;
+    let diffLines1: string[] = [];
+    let diffLines2: string[] = [];
+
+    const flushDiff = () => {
+      if (diffLines1.length > 0 || diffLines2.length > 0) {
+        diff.push(`@@ -${diffStart + 1},${diffLines1.length} +${diffStart + 1},${diffLines2.length} @@`);
+        for (const line of diffLines1) {
+          diff.push(`-${line}`);
+        }
+        for (const line of diffLines2) {
+          diff.push(`+${line}`);
+        }
+      }
+      diffLines1 = [];
+      diffLines2 = [];
+    };
+
+    for (let i = 0; i < maxLines; i++) {
+      const line1 = lines1[i] || '';
+      const line2 = lines2[i] || '';
+
+      const l1 = ignoreWhitespace ? line1.trim() : line1;
+      const l2 = ignoreWhitespace ? line2.trim() : line2;
+
+      if (l1 !== l2) {
+        if (!inDiff) {
+          diffStart = i;
+          inDiff = true;
+        }
+        if (i < lines1.length) diffLines1.push(line1);
+        if (i < lines2.length) diffLines2.push(line2);
+      } else {
+        if (inDiff) {
+          flushDiff();
+          inDiff = false;
+        }
+      }
+    }
+
+    if (inDiff) {
+      flushDiff();
+    }
+
+    if (diff.length === 2) {
+      return 'Files are identical.';
+    }
+
+    return limitOutput(diff.join('\n'));
+  }
+
+  if (name === 'web_search') {
+    const query = stringArg(args, 'query');
+    const limit = typeof args.limit === 'number' ? Math.min(args.limit, 10) : 5;
+
+    try {
+      // Use DuckDuckGo HTML search (no API key required)
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const response = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; BincodeBot/1.0)'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
+
+      const html = await response.text();
+      
+      // Parse search results from HTML
+      const results: string[] = [];
+      const resultRegex = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
+      const snippetRegex = /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([^<]*(?:<[^>]+>[^<]*)*)<\/a>/g;
+
+      let match;
+      let count = 0;
+      
+      while ((match = resultRegex.exec(html)) !== null && count < limit) {
+        const url = match[1];
+        const title = match[2].replace(/<[^>]+>/g, '').trim();
+        
+        results.push(`${count + 1}. ${title}`);
+        results.push(`   URL: ${url}`);
+        count++;
+      }
+
+      if (results.length === 0) {
+        return `No results found for: ${query}`;
+      }
+
+      return `Search results for "${query}":\n\n${results.join('\n')}`;
+    } catch (error) {
+      throw new Error(`Web search failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'web_fetch') {
+    const url = stringArg(args, 'url');
+    const selector = typeof args.selector === 'string' ? args.selector : null;
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; BincodeBot/1.0)'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Fetch failed: ${response.status}`);
+      }
+
+      let content = await response.text();
+
+      // Simple HTML to text conversion
+      content = content
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+        .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+
+      // Extract specific content if selector provided
+      if (selector) {
+        // Simple selector matching for common patterns
+        const patterns: Record<string, RegExp> = {
+          'title': /<title[^>]*>([^<]+)<\/title>/i,
+          'h1': /<h1[^>]*>([^<]+)<\/h1>/i,
+          'article': /<article[^>]*>([\s\S]*?)<\/article>/i,
+          'main': /<main[^>]*>([\s\S]*?)<\/main>/i
+        };
+
+        const regex = patterns[selector];
+        if (regex) {
+          const match = content.match(regex);
+          if (match) {
+            content = match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          }
+        }
+      }
+
+      return limitOutput(content);
+    } catch (error) {
+      throw new Error(`Web fetch failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'generate_docs') {
+    const targetPath = resolveWorkspacePath(cwd, stringArg(args, 'path'));
+    const docType = typeof args.type === 'string' ? args.type : 'jsdoc';
+    const outputPath = typeof args.output === 'string' ? resolveWorkspacePath(cwd, args.output) : null;
+
+    try {
+      const stat = await fs.stat(targetPath);
+      const files: string[] = [];
+
+      if (stat.isDirectory()) {
+        // Find all TypeScript/JavaScript files
+        const findFiles = async (dir: string): Promise<void> => {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+              await findFiles(fullPath);
+            } else if (entry.isFile() && /\.(ts|tsx|js|jsx)$/.test(entry.name)) {
+              files.push(fullPath);
+            }
+          }
+        };
+        await findFiles(targetPath);
+      } else if (stat.isFile()) {
+        files.push(targetPath);
+      }
+
+      if (files.length === 0) {
+        return 'No source files found to document.';
+      }
+
+      const docs: string[] = [];
+
+      for (const file of files) {
+        const content = await fs.readFile(file, 'utf8');
+        const relativePath = path.relative(cwd, file);
+
+        if (docType === 'jsdoc') {
+          // Extract functions and classes for JSDoc generation
+          const functionMatches = content.matchAll(/(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g);
+          const classMatches = content.matchAll(/(?:export\s+)?class\s+(\w+)/g);
+          const interfaceMatches = content.matchAll(/(?:export\s+)?interface\s+(\w+)/g);
+
+          const items: string[] = [];
+
+          for (const match of functionMatches) {
+            const fnName = match[1];
+            const params = match[2];
+            items.push(`/**
+ * ${fnName}
+ * @param {any} params - Function parameters
+ * @returns {any} Return value
+ */`);
+          }
+
+          for (const match of classMatches) {
+            items.push(`/**
+ * ${match[1]} class
+ * @class
+ */`);
+          }
+
+          for (const match of interfaceMatches) {
+            items.push(`/**
+ * ${match[1]} interface
+ * @interface
+ */`);
+          }
+
+          if (items.length > 0) {
+            docs.push(`// ${relativePath}\n${items.join('\n\n')}\n`);
+          }
+        } else if (docType === 'readme') {
+          docs.push(`## ${path.basename(file, path.extname(file))}\n\nSource: \`${relativePath}\`\n`);
+        } else if (docType === 'api') {
+          // Extract exported functions for API documentation
+          const exportMatches = content.matchAll(/export\s+(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g);
+          
+          for (const match of exportMatches) {
+            docs.push(`### ${match[1]}\n\n\`\`\`typescript\n${match[0]}\n\`\`\`\n`);
+          }
+        }
+      }
+
+      const result = docs.join('\n---\n\n');
+
+      if (outputPath) {
+        await fs.writeFile(outputPath, result, 'utf8');
+        return `Documentation generated: ${path.relative(cwd, outputPath)}`;
+      }
+
+      return limitOutput(result || 'No documentation generated.');
+    } catch (error) {
+      throw new Error(`Documentation generation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   if (name === 'search_and_replace') {
     const pattern = stringArg(args, 'pattern');
     const search = stringArg(args, 'search');
@@ -477,8 +924,9 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     const commandArgs = Array.isArray(args.args) ? args.args.filter((a): a is string => typeof a === 'string') : [];
     const timeout = typeof args.timeout === 'number' ? args.timeout * 1000 : 30000;
 
-    if (!ALLOWED_COMMANDS.has(command)) {
-      throw new Error(`Command "${command}" is not allowed. Allowed commands: ${Array.from(ALLOWED_COMMANDS).join(', ')}`);
+    if (!isCommandAllowed(command)) {
+      const allowed = Array.from(getAllowedCommands());
+      throw new Error(`Command "${command}" is not allowed. Allowed commands: ${allowed.slice(0, 10).join(', ')}${allowed.length > 10 ? '...' : ''}`);
     }
 
     try {
@@ -530,6 +978,207 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     } catch (error) {
       throw new Error(`Git log failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  if (name === 'git_branch') {
+    const action = stringArg(args, 'action');
+    const branchName = typeof args.name === 'string' ? args.name : '';
+    const all = args.all === true;
+
+    try {
+      switch (action) {
+        case 'list': {
+          const gitArgs = ['branch'];
+          if (all) gitArgs.push('-a');
+          return limitOutput(await runCommand('git', gitArgs, cwd));
+        }
+        case 'current': {
+          const result = await runCommand('git', ['branch', '--show-current'], cwd);
+          return result.trim() || '(detached HEAD)';
+        }
+        case 'create': {
+          if (!branchName) throw new Error('Branch name is required for create action');
+          await runCommand('git', ['branch', branchName], cwd);
+          return `Created branch: ${branchName}`;
+        }
+        case 'delete': {
+          if (!branchName) throw new Error('Branch name is required for delete action');
+          await runCommand('git', ['branch', '-d', branchName], cwd);
+          return `Deleted branch: ${branchName}`;
+        }
+        default:
+          throw new Error(`Unknown git_branch action: ${action}`);
+      }
+    } catch (error) {
+      throw new Error(`Git branch failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'git_checkout') {
+    const target = stringArg(args, 'target');
+    const createBranch = args.create_branch === true;
+
+    try {
+      const gitArgs = createBranch ? ['checkout', '-b', target] : ['checkout', target];
+      await runCommand('git', gitArgs, cwd);
+      return createBranch ? `Created and switched to branch: ${target}` : `Switched to: ${target}`;
+    } catch (error) {
+      throw new Error(`Git checkout failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'git_commit') {
+    const message = typeof args.message === 'string' ? args.message : '';
+    const all = args.all === true;
+
+    try {
+      // If no message, show staged changes
+      if (!message) {
+        const stagedDiff = await runCommand('git', ['diff', '--cached', '--stat'], cwd);
+        if (!stagedDiff.trim()) {
+          return 'No staged changes. Use git_add to stage files first.';
+        }
+        return `Staged changes:\n${stagedDiff}\n\nProvide a commit message to commit.`;
+      }
+
+      const gitArgs = ['commit', '-m', message];
+      if (all) gitArgs.push('-a');
+
+      const result = await runCommand('git', gitArgs, cwd);
+      return limitOutput(result);
+    } catch (error) {
+      throw new Error(`Git commit failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'git_add') {
+    const addPath = stringArg(args, 'path');
+
+    try {
+      await runCommand('git', ['add', addPath], cwd);
+      return `Staged: ${addPath}`;
+    } catch (error) {
+      throw new Error(`Git add failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'git_stash') {
+    const action = stringArg(args, 'action');
+    const stashMessage = typeof args.message === 'string' ? args.message : '';
+
+    try {
+      switch (action) {
+        case 'push': {
+          const gitArgs = ['stash', 'push'];
+          if (stashMessage) gitArgs.push('-m', stashMessage);
+          await runCommand('git', gitArgs, cwd);
+          return 'Changes stashed successfully.';
+        }
+        case 'pop': {
+          const result = await runCommand('git', ['stash', 'pop'], cwd);
+          return limitOutput(result || 'Stash applied successfully.');
+        }
+        case 'list': {
+          const result = await runCommand('git', ['stash', 'list'], cwd);
+          return limitOutput(result || 'No stashes found.');
+        }
+        case 'drop': {
+          await runCommand('git', ['stash', 'drop'], cwd);
+          return 'Stash dropped successfully.';
+        }
+        default:
+          throw new Error(`Unknown git_stash action: ${action}`);
+      }
+    } catch (error) {
+      throw new Error(`Git stash failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'git_blame') {
+    const blamePath = stringArg(args, 'path');
+
+    try {
+      const result = await runCommand('git', ['blame', '--line-porcelain', blamePath], cwd);
+      
+      // Parse blame output for a cleaner format
+      const lines = result.split('\n');
+      const blameInfo: string[] = [];
+      let currentCommit = '';
+      let currentAuthor = '';
+      let currentLine = '';
+
+      for (const line of lines) {
+        if (line.startsWith('author ')) {
+          currentAuthor = line.slice(7);
+        } else if (line.startsWith('author-mail ')) {
+          // Skip
+        } else if (line.startsWith('summary ')) {
+          // Skip
+        } else if (line.match(/^\w{40}/)) {
+          const parts = line.split(' ');
+          currentCommit = parts[0].slice(0, 8);
+          currentLine = parts[parts.length - 1];
+        } else if (line.startsWith('\t')) {
+          const code = line.slice(1);
+          blameInfo.push(`${currentCommit} ${currentAuthor.padEnd(20)} | ${code}`);
+        }
+      }
+
+      return limitOutput(blameInfo.join('\n'));
+    } catch (error) {
+      throw new Error(`Git blame failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (name === 'analyze_image') {
+    const { analyzeImage } = await import('./image.js');
+    const imagePath = resolveWorkspacePath(cwd, stringArg(args, 'path'));
+    return await analyzeImage(imagePath);
+  }
+
+  if (name === 'code_search') {
+    const { indexWorkspace, loadIndex, searchSymbols } = await import('./indexer.js');
+    const query = stringArg(args, 'query');
+    const kind = typeof args.kind === 'string' ? args.kind : undefined;
+    const language = typeof args.language === 'string' ? args.language : undefined;
+    const limit = typeof args.limit === 'number' ? args.limit : 10;
+
+    // 尝试加载已有索引，否则重新构建
+    let entries = loadIndex(cwd)?.entries;
+    if (!entries) {
+      entries = indexWorkspace(cwd);
+    }
+
+    const results = searchSymbols(entries, query, { kind, language, limit });
+
+    if (results.length === 0) {
+      return `No symbols found matching "${query}".`;
+    }
+
+    return results.map(r =>
+      `${r.symbol} (${r.kind}) at ${r.file}:${r.line}\n  ${r.context.split('\n')[0].trim()}`
+    ).join('\n\n');
+  }
+
+  if (name === 'code_complete') {
+    const { codeComplete } = await import('./completion.js');
+    const filePath = resolveWorkspacePath(cwd, stringArg(args, 'path'));
+    const line = typeof args.line === 'number' ? args.line : 1;
+    const column = typeof args.column === 'number' ? args.column : 1;
+
+    const content = await fs.readFile(filePath, 'utf8');
+    const result = await codeComplete({
+      filePath: path.relative(cwd, filePath),
+      fileContent: content,
+      cursorLine: line,
+      cursorColumn: column
+    });
+
+    if (result.completions.length === 0) {
+      return 'No completions available.';
+    }
+
+    return result.completions.map(c => `${c.text} [${c.type}]`).join('\n');
   }
 
   throw new Error(`Unknown tool: ${name}`);

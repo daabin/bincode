@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Box, render, Text, useApp, useInput } from 'ink';
 import { Agent } from './agent.js';
 import type { AgentEvent } from './types.js';
-import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath } from './config.js';
+import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath, getProvider, setProvider } from './config.js';
+import { detectAvailableProviders, type ProviderType } from './llm/index.js';
 import { Markdown } from './markdown.js';
 
 type Line =
@@ -13,40 +14,80 @@ type Line =
   | { kind: 'error'; text: string }
   | { kind: 'system'; text: string };
 
+// Loading spinner component
+function Spinner({ active }: { active: boolean }) {
+  const [frame, setFrame] = useState(0);
+  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => {
+      setFrame(f => (f + 1) % frames.length);
+    }, 80);
+    return () => clearInterval(timer);
+  }, [active]);
+  
+  if (!active) return null;
+  
+  return <Text color="yellow">{frames[frame]} Thinking...</Text>;
+}
+
+// Status bar component
+function StatusBar({ provider, model, busy }: { provider: string; model: string; busy: boolean }) {
+  return (
+    <Box borderStyle="single" borderColor={busy ? 'yellow' : 'green'} paddingX={1}>
+      <Text dimColor>Provider: </Text>
+      <Text color="cyan">{provider}</Text>
+      <Text dimColor> | Model: </Text>
+      <Text color="cyan">{model}</Text>
+      {busy && <Text color="yellow"> ⏳</Text>}
+    </Box>
+  );
+}
+
 function App({ initialPrompt }: { initialPrompt?: string }) {
   const { exit } = useApp();
   const [input, setInput] = useState('');
   const [cursor, setCursor] = useState(0);
   const [busy, setBusy] = useState(false);
+  const currentProvider = getProvider();
   const [lines, setLines] = useState<Line[]>([
     { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
-    { kind: 'system', text: 'Commands: /setkey <api-key> - Save your DeepSeek API key' }
+    { kind: 'system', text: `Current provider: ${currentProvider}` },
+    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
   ]);
   const [agent, setAgent] = useState<Agent | null>(() => {
     const apiKey = getApiKey();
-    if (!apiKey) {
+    const provider = getProvider();
+    
+    // Ollama doesn't require API key
+    if (!apiKey && provider !== 'ollama') {
       return null;
     }
 
     return new Agent({
       cwd: process.cwd(),
-      apiKey,
+      apiKey: apiKey || '',
       baseUrl: getBaseUrl(),
       model: getModel(),
+      provider,
       maxIterations: 30
     });
   });
 
   React.useEffect(() => {
     if (!agent) {
+      const provider = getProvider();
       setLines(previous => [
         ...previous,
-        { kind: 'error', text: `Missing DEEPSEEK_API_KEY. Please set it via:` },
-        { kind: 'system', text: `  1. Type: /setkey sk-your-api-key` },
-        { kind: 'system', text: `  2. Or set environment variable: export DEEPSEEK_API_KEY="sk-..."` },
+        { kind: 'error', text: `Missing API key for provider: ${provider}` },
+        { kind: 'system', text: `Please set it via:` },
+        { kind: 'system', text: `  1. Type: /setkey <your-api-key>` },
+        { kind: 'system', text: `  2. Or set environment variable` },
         { kind: 'system', text: `  3. Or edit config file: ${getConfigPath()}` },
         { kind: 'system', text: `` },
-        { kind: 'system', text: `Get your API key at: https://platform.deepseek.com/api_keys` }
+        { kind: 'system', text: `Supported providers: deepseek, openai, anthropic, ollama` },
+        { kind: 'system', text: `Use /setprovider <provider> to switch providers` }
       ]);
       return;
     }
@@ -80,12 +121,14 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
         if (newApiKey.length > 0) {
           try {
             setApiKey(newApiKey);
+            const provider = getProvider();
             // 重新初始化 agent
             const newAgent = new Agent({
               cwd: process.cwd(),
               apiKey: newApiKey,
               baseUrl: getBaseUrl(),
               model: getModel(),
+              provider,
               maxIterations: 30
             });
             setAgent(newAgent);
@@ -93,6 +136,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
               ...previous,
               { kind: 'user', text: '/setkey ***' },
               { kind: 'system', text: `✓ API key saved to ${getConfigPath()}` },
+              { kind: 'system', text: `✓ Provider: ${provider}` },
               { kind: 'system', text: '✓ Agent initialized successfully. You can start chatting now!' }
             ]);
           } catch (error) {
@@ -108,12 +152,114 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
             ...previous,
             { kind: 'user', text: trimmed },
             { kind: 'error', text: 'Usage: /setkey <your-api-key>' },
-            { kind: 'system', text: 'Example: /setkey sk-abc123...' },
-            { kind: 'system', text: 'Get your key at: https://platform.deepseek.com/api_keys' }
+            { kind: 'system', text: 'Example: /setkey sk-abc123...' }
           ]);
         }
         return;
       }
+
+      if (trimmed.startsWith('/setprovider ')) {
+        const newProvider = trimmed.slice(13).trim() as ProviderType;
+        const validProviders = ['deepseek', 'openai', 'anthropic', 'ollama', 'custom'];
+        
+        if (validProviders.includes(newProvider)) {
+          try {
+            setProvider(newProvider);
+            const apiKey = getApiKey();
+            
+            // Ollama doesn't require API key
+            if (!apiKey && newProvider !== 'ollama') {
+              setAgent(null);
+              setLines(previous => [
+                ...previous,
+                { kind: 'user', text: trimmed },
+                { kind: 'system', text: `✓ Provider switched to: ${newProvider}` },
+                { kind: 'error', text: `Please set API key for ${newProvider} using /setkey` }
+              ]);
+            } else {
+              const newAgent = new Agent({
+                cwd: process.cwd(),
+                apiKey: apiKey || '',
+                baseUrl: getBaseUrl(),
+                model: getModel(),
+                provider: newProvider,
+                maxIterations: 30
+              });
+              setAgent(newAgent);
+              setLines(previous => [
+                ...previous,
+                { kind: 'user', text: trimmed },
+                { kind: 'system', text: `✓ Provider switched to: ${newProvider}` },
+                { kind: 'system', text: `✓ Model: ${getModel()}` },
+                { kind: 'system', text: '✓ Agent initialized successfully!' }
+              ]);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setLines(previous => [
+              ...previous,
+              { kind: 'user', text: trimmed },
+              { kind: 'error', text: `Failed to switch provider: ${message}` }
+            ]);
+          }
+        } else {
+          setLines(previous => [
+            ...previous,
+            { kind: 'user', text: trimmed },
+            { kind: 'error', text: `Invalid provider: ${newProvider}` },
+            { kind: 'system', text: `Valid providers: ${validProviders.join(', ')}` }
+          ]);
+        }
+        return;
+      }
+
+      if (trimmed === '/stats') {
+        void (async () => {
+          const { globalTokenCounter } = await import('./tokens.js');
+          const total = globalTokenCounter.getTotalUsage();
+          const today = globalTokenCounter.getTodayUsage();
+          const records = globalTokenCounter.getRecords(5);
+
+          setLines(previous => [
+            ...previous,
+            { kind: 'user', text: '/stats' },
+            { kind: 'system', text: '📊 Token Usage Statistics' },
+            { kind: 'system', text: '' },
+            { kind: 'system', text: `Total: ${total.totalTokens.toLocaleString()} tokens (${total.promptTokens.toLocaleString()} prompt + ${total.completionTokens.toLocaleString()} completion)` },
+            { kind: 'system', text: `Today: ${today.totalTokens.toLocaleString()} tokens` },
+            { kind: 'system', text: '' },
+            { kind: 'system', text: `Recent requests (${records.length} shown):` },
+            ...records.map(r => ({
+              kind: 'system' as const,
+              text: `  ${new Date(r.timestamp).toLocaleString()} - ${r.provider}/${r.model}: ${r.usage.totalTokens} tokens`
+            }))
+          ]);
+        })();
+        return;
+      }
+
+      if (trimmed === '/clear') {
+        setLines([
+          { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
+          { kind: 'system', text: `Current provider: ${getProvider()}` },
+          { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
+        ]);
+        return;
+      }
+
+      if (trimmed === '/config') {
+        void (async () => {
+          const { showConfig } = await import('./configWatcher.js');
+          const configInfo = showConfig();
+          setLines(previous => [
+            ...previous,
+            { kind: 'user', text: '/config' },
+            { kind: 'system', text: configInfo }
+          ]);
+        })();
+        return;
+      }
+
       if (trimmed.length > 0) {
         void submit(trimmed);
       }
@@ -244,11 +390,18 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
           <LineView key={`${index}-${line.kind}`} line={line} />
         ))}
       </Box>
+      {busy && (
+        <Box marginBottom={1}>
+          <Spinner active={busy} />
+        </Box>
+      )}
+      <StatusBar provider={currentProvider} model={getModel()} busy={busy} />
       <Box
         borderStyle="round"
         borderColor={busy ? 'yellow' : 'green'}
         paddingX={1}
         paddingY={0}
+        marginTop={1}
       >
         <Text color={busy ? 'yellow' : 'green'}>{busy ? '···' : '>'}</Text>
         <Text> </Text>
