@@ -1,6 +1,8 @@
-import { createChatCompletionStream } from './deepseek.js';
+import { createProvider, type ProviderType } from './llm/index.js';
+import type { LLMProvider } from './llm/types.js';
 import { runTool, toolDefinitions } from './tools.js';
 import type { AgentConfig, AgentEvent, ChatMessage } from './types.js';
+import { globalTokenCounter, estimateMessagesTokens } from './tokens.js';
 
 const systemPrompt = `You are a minimal CLI code agent inspired by Claude Code.
 You help the user inspect and edit files in the current workspace.
@@ -10,9 +12,14 @@ Never attempt to access paths outside the workspace.`;
 
 export class Agent {
   private readonly messages: ChatMessage[];
+  private readonly provider: LLMProvider;
 
-  constructor(private readonly config: AgentConfig) {
+  constructor(private readonly config: AgentConfig & { provider?: ProviderType }) {
     this.messages = [{ role: 'system', content: systemPrompt }];
+    this.provider = createProvider(config.provider || 'deepseek', {
+      name: config.provider || 'deepseek',
+      apiKey: config.apiKey
+    });
   }
 
   async *run(userInput: string): AsyncGenerator<AgentEvent> {
@@ -24,7 +31,7 @@ export class Agent {
       let finalReasoning: string | undefined;
 
       // 使用流式 API
-      for await (const chunk of createChatCompletionStream({
+      for await (const chunk of this.provider.createChatCompletionStream({
         apiKey: this.config.apiKey,
         baseUrl: this.config.baseUrl,
         model: this.config.model,
@@ -50,6 +57,22 @@ export class Agent {
         tool_calls: finalToolCalls,
         reasoning_content: finalReasoning
       });
+
+      // 记录 Token 使用
+      const promptTokens = estimateMessagesTokens(this.messages.slice(0, -1));
+      const completionTokens = estimateMessagesTokens([{
+        role: 'assistant',
+        content: accumulatedContent + (finalReasoning || '')
+      }]);
+      globalTokenCounter.record(
+        this.config.provider || 'deepseek',
+        this.config.model,
+        {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens
+        }
+      );
 
       // 如果没有工具调用，结束
       const toolCalls = finalToolCalls ?? [];
