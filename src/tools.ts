@@ -325,23 +325,6 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'compare_files',
-      description: 'Compare two files and show differences. Supports unified diff format.',
-      parameters: {
-        type: 'object',
-        properties: {
-          file1: { type: 'string', description: 'Path to first file.' },
-          file2: { type: 'string', description: 'Path to second file.' },
-          ignore_whitespace: { type: 'boolean', description: 'Ignore whitespace differences. Default false.' }
-        },
-        required: ['file1', 'file2'],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
       name: 'search_and_replace',
       description: 'Search and replace text across multiple files matching a pattern.',
       parameters: {
@@ -522,75 +505,6 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
       }
       return limitOutput((await searchTextFallback(cwd, target, query)).join('\n') || '(no matches)');
     }
-  }
-
-  if (name === 'compare_files') {
-    const file1 = resolveWorkspacePath(cwd, stringArg(args, 'file1'));
-    const file2 = resolveWorkspacePath(cwd, stringArg(args, 'file2'));
-    const ignoreWhitespace = args.ignore_whitespace === true;
-
-    const content1 = await fs.readFile(file1, 'utf8');
-    const content2 = await fs.readFile(file2, 'utf8');
-
-    const lines1 = content1.split('\n');
-    const lines2 = content2.split('\n');
-
-    // Simple diff algorithm
-    const diff: string[] = [];
-    diff.push(`--- ${path.relative(cwd, file1)}`);
-    diff.push(`+++ ${path.relative(cwd, file2)}`);
-
-    const maxLines = Math.max(lines1.length, lines2.length);
-    let inDiff = false;
-    let diffStart = 0;
-    let diffLines1: string[] = [];
-    let diffLines2: string[] = [];
-
-    const flushDiff = () => {
-      if (diffLines1.length > 0 || diffLines2.length > 0) {
-        diff.push(`@@ -${diffStart + 1},${diffLines1.length} +${diffStart + 1},${diffLines2.length} @@`);
-        for (const line of diffLines1) {
-          diff.push(`-${line}`);
-        }
-        for (const line of diffLines2) {
-          diff.push(`+${line}`);
-        }
-      }
-      diffLines1 = [];
-      diffLines2 = [];
-    };
-
-    for (let i = 0; i < maxLines; i++) {
-      const line1 = lines1[i] || '';
-      const line2 = lines2[i] || '';
-
-      const l1 = ignoreWhitespace ? line1.trim() : line1;
-      const l2 = ignoreWhitespace ? line2.trim() : line2;
-
-      if (l1 !== l2) {
-        if (!inDiff) {
-          diffStart = i;
-          inDiff = true;
-        }
-        if (i < lines1.length) diffLines1.push(line1);
-        if (i < lines2.length) diffLines2.push(line2);
-      } else {
-        if (inDiff) {
-          flushDiff();
-          inDiff = false;
-        }
-      }
-    }
-
-    if (inDiff) {
-      flushDiff();
-    }
-
-    if (diff.length === 2) {
-      return 'Files are identical.';
-    }
-
-    return limitOutput(diff.join('\n'));
   }
 
   if (name === 'search_and_replace') {
