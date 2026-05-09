@@ -2,10 +2,21 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { ToolDefinition } from './types.js';
-import { isCommandAllowed, getAllowedCommands } from './config.js';
 
 const ignoredDirs = new Set(['.git', 'node_modules', 'dist']);
 const rgIgnoreArgs = ['-g', '!node_modules/**', '-g', '!dist/**', '-g', '!.git/**'];
+
+// 允许的命令白名单
+const ALLOWED_COMMANDS = new Set([
+  'npm', 'yarn', 'pnpm', 'bun',
+  'node', 'tsx', 'ts-node', 'deno',
+  'git',
+  'eslint', 'tsc', 'prettier',
+  'cat', 'ls', 'pwd', 'echo', 'which',
+  'python', 'python3', 'pip',
+  'cargo', 'rustc',
+  'go', 'java', 'javac'
+]);
 
 export const toolDefinitions: ToolDefinition[] = [
   {
@@ -542,9 +553,8 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     const commandArgs = Array.isArray(args.args) ? args.args.filter((a): a is string => typeof a === 'string') : [];
     const timeout = typeof args.timeout === 'number' ? args.timeout * 1000 : 30000;
 
-    if (!isCommandAllowed(command)) {
-      const allowed = Array.from(getAllowedCommands());
-      throw new Error(`Command "${command}" is not allowed. Allowed commands: ${allowed.slice(0, 10).join(', ')}${allowed.length > 10 ? '...' : ''}`);
+    if (!ALLOWED_COMMANDS.has(command)) {
+      throw new Error(`Command "${command}" is not allowed. Allowed commands: ${Array.from(ALLOWED_COMMANDS).join(', ')}`);
     }
 
     try {
