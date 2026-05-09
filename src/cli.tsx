@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Box, render, Text, useApp, useInput } from 'ink';
 import { Agent } from './agent.js';
 import type { AgentEvent } from './types.js';
@@ -13,37 +13,6 @@ type Line =
   | { kind: 'tool'; text: string }
   | { kind: 'error'; text: string }
   | { kind: 'system'; text: string };
-
-// Loading spinner component
-function Spinner({ active }: { active: boolean }) {
-  const [frame, setFrame] = useState(0);
-  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  
-  useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => {
-      setFrame(f => (f + 1) % frames.length);
-    }, 80);
-    return () => clearInterval(timer);
-  }, [active]);
-  
-  if (!active) return null;
-  
-  return <Text color="yellow">{frames[frame]} Thinking...</Text>;
-}
-
-// Status bar component
-function StatusBar({ provider, model, busy }: { provider: string; model: string; busy: boolean }) {
-  return (
-    <Box borderStyle="single" borderColor={busy ? 'yellow' : 'green'} paddingX={1}>
-      <Text dimColor>Provider: </Text>
-      <Text color="cyan">{provider}</Text>
-      <Text dimColor> | Model: </Text>
-      <Text color="cyan">{model}</Text>
-      {busy && <Text color="yellow"> ⏳</Text>}
-    </Box>
-  );
-}
 
 function App({ initialPrompt }: { initialPrompt?: string }) {
   const { exit } = useApp();
@@ -390,18 +359,11 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
           <LineView key={`${index}-${line.kind}`} line={line} />
         ))}
       </Box>
-      {busy && (
-        <Box marginBottom={1}>
-          <Spinner active={busy} />
-        </Box>
-      )}
-      <StatusBar provider={currentProvider} model={getModel()} busy={busy} />
       <Box
         borderStyle="round"
         borderColor={busy ? 'yellow' : 'green'}
         paddingX={1}
         paddingY={0}
-        marginTop={1}
       >
         <Text color={busy ? 'yellow' : 'green'}>{busy ? '···' : '>'}</Text>
         <Text> </Text>
