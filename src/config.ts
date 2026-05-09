@@ -8,15 +8,24 @@ export interface Config {
   model?: string;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), '.bincode');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+/**
+ * 获取配置目录（每次调用时读取环境变量以支持测试覆盖）
+ */
+function getConfigDir(): string {
+  return process.env.BINCODE_CONFIG_DIR || path.join(os.homedir(), '.bincode');
+}
+
+function getConfigFile(): string {
+  return path.join(getConfigDir(), 'config.json');
+}
 
 /**
  * 确保配置目录存在
  */
 function ensureConfigDir(): void {
-  if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { mode: 0o700, recursive: true });
+  const dir = getConfigDir();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { mode: 0o700, recursive: true });
   }
 }
 
@@ -26,11 +35,12 @@ function ensureConfigDir(): void {
 export function loadConfig(): Config {
   try {
     ensureConfigDir();
-    if (!fs.existsSync(CONFIG_FILE)) {
+    const configFile = getConfigFile();
+    if (!fs.existsSync(configFile)) {
       return {};
     }
 
-    const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
+    const content = fs.readFileSync(configFile, 'utf-8');
     return JSON.parse(content) as Config;
   } catch (error) {
     console.error('Failed to load config:', error);
@@ -44,7 +54,7 @@ export function loadConfig(): Config {
 export function saveConfig(config: Config): void {
   try {
     ensureConfigDir();
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), {
+    fs.writeFileSync(getConfigFile(), JSON.stringify(config, null, 2), {
       mode: 0o600 // 仅用户可读写
     });
   } catch (error) {
@@ -103,5 +113,5 @@ export function getModel(): string {
  * 获取配置文件路径（用于文档说明）
  */
 export function getConfigPath(): string {
-  return CONFIG_FILE;
+  return getConfigFile();
 }

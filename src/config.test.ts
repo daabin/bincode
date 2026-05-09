@@ -19,6 +19,8 @@ describe('config', () => {
   const testConfigFile = path.join(testConfigDir, 'config.json');
 
   beforeEach(() => {
+    // Override config directory to use test temp dir
+    process.env.BINCODE_CONFIG_DIR = testConfigDir;
     // Clean up any existing test config
     if (fs.existsSync(testConfigDir)) {
       fs.rmSync(testConfigDir, { recursive: true });
@@ -31,6 +33,7 @@ describe('config', () => {
       fs.rmSync(testConfigDir, { recursive: true });
     }
     // Clear environment variables
+    delete process.env.BINCODE_CONFIG_DIR;
     delete process.env.DEEPSEEK_API_KEY;
     delete process.env.DEEPSEEK_BASE_URL;
     delete process.env.DEEPSEEK_MODEL;
@@ -51,8 +54,8 @@ describe('config', () => {
       };
       fs.writeFileSync(testConfigFile, JSON.stringify(testConfig));
 
-      // We need to mock the config path, but for now just test the function exists
-      expect(typeof loadConfig).toBe('function');
+      const config = loadConfig();
+      expect(config).toEqual(testConfig);
     });
   });
 
@@ -121,7 +124,7 @@ describe('config', () => {
     it('should return a string path', () => {
       const configPath = getConfigPath();
       expect(typeof configPath).toBe('string');
-      expect(configPath).toContain('.bincode');
+      expect(configPath).toContain('bincode-test-config');
       expect(configPath).toContain('config.json');
     });
   });

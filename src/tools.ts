@@ -60,7 +60,9 @@ export const toolDefinitions: ToolDefinition[] = [
         properties: {
           path: { type: 'string', description: 'Path relative to the workspace root.' },
           old_text: { type: 'string', description: 'The exact text to find and replace. Must match exactly including whitespace.' },
-          new_text: { type: 'string', description: 'The new text to replace with.' }
+          new_text: { type: 'string', description: 'The new text to replace with.' },
+          replace_all: { type: 'boolean', description: 'Replace all occurrences. Default false.' },
+          occurrence: { type: 'number', description: 'Replace a specific occurrence (1-indexed).' }
         },
         required: ['path', 'old_text', 'new_text'],
         additionalProperties: false
@@ -278,19 +280,57 @@ export async function runTool(cwd: string, name: string, args: ToolArgs): Promis
     const target = resolveWorkspacePath(cwd, stringArg(args, 'path'));
     const oldText = stringArg(args, 'old_text');
     const newText = stringArg(args, 'new_text');
+    const replaceAll = args.replace_all === true;
+    const occurrence = typeof args.occurrence === 'number' ? args.occurrence : undefined;
 
     const content = await fs.readFile(target, 'utf8');
-    const occurrences = (content.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
+    const totalOccurrences = (content.match(new RegExp(escapeRegExp(oldText), 'g')) || []).length;
 
-    if (occurrences === 0) {
+    if (totalOccurrences === 0) {
       throw new Error(`Text not found in file. Make sure the old_text matches exactly including whitespace.`);
     }
 
-    if (occurrences > 1) {
-      throw new Error(`Found ${occurrences} occurrences of old_text. Please be more specific to avoid ambiguity.`);
+    let newContent: string;
+
+    if (occurrence !== undefined) {
+      // Replace specific occurrence (1-indexed)
+      if (occurrence < 1 || occurrence > totalOccurrences) {
+        throw new Error(`Invalid occurrence ${occurrence}. Valid range: 1 to ${totalOccurrences}.`);
+      }
+
+      const escaped = escapeRegExp(oldText);
+      const regex = new RegExp(escaped, 'g');
+      let count = 0;
+      newContent = content.replace(regex, (match) => {
+        count++;
+        return count === occurrence ? newText : match;
+      });
+      await fs.writeFile(target, newContent, 'utf8');
+      return `Replaced 1 occurrence in ${path.relative(cwd, target)}.`;
     }
 
-    const newContent = content.replace(oldText, newText);
+    if (replaceAll) {
+      const escaped = escapeRegExp(oldText);
+      const regex = new RegExp(escaped, 'g');
+      newContent = content.replace(regex, newText);
+      await fs.writeFile(target, newContent, 'utf8');
+      return `Replaced ${totalOccurrences} occurrence(s) in ${path.relative(cwd, target)}.`;
+    }
+
+    // Default: replace first occurrence only
+    if (totalOccurrences > 1) {
+      const escaped = escapeRegExp(oldText);
+      const regex = new RegExp(escaped, 'g');
+      let count = 0;
+      newContent = content.replace(regex, (match) => {
+        count++;
+        return count === 1 ? newText : match;
+      });
+      await fs.writeFile(target, newContent, 'utf8');
+      return `Replaced 1 occurrence in ${path.relative(cwd, target)}. found ${totalOccurrences} total.`;
+    }
+
+    newContent = content.replace(oldText, newText);
     await fs.writeFile(target, newContent, 'utf8');
     return `Replaced 1 occurrence in ${path.relative(cwd, target)}.`;
   }
