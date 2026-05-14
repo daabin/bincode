@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 import { createProvider, type ProviderType } from './llm/index.js';
 import type { LLMProvider } from './llm/types.js';
 import { getProvider, getApiKey, getBaseUrl, getModel } from './config/index.js';
+=======
+import { DeepSeekProvider } from './llm/index.js';
+import { getApiKey, getBaseUrl, getModel } from './config.js';
+>>>>>>> agents/refactor-project-deepseek-web-support
 
 /**
  * 代码补全请求
@@ -19,7 +24,6 @@ export interface CompletionRequest {
  */
 export interface CompletionResult {
   completions: CompletionItem[];
-  provider: string;
   model: string;
 }
 
@@ -32,9 +36,6 @@ export interface CompletionItem {
   type: 'function' | 'variable' | 'statement' | 'block' | 'import' | 'other';
 }
 
-/**
- * 获取光标前的上下文
- */
 function getPrefixContext(content: string, line: number, column: number): string {
   const lines = content.split('\n');
   const prefixLines = lines.slice(Math.max(0, line - 20), line);
@@ -43,9 +44,6 @@ function getPrefixContext(content: string, line: number, column: number): string
   return prefixLines.join('\n');
 }
 
-/**
- * 获取光标后的上下文
- */
 function getSuffixContext(content: string, line: number, column: number): string {
   const lines = content.split('\n');
   const suffixLines = lines.slice(line - 1, line + 10);
@@ -53,27 +51,13 @@ function getSuffixContext(content: string, line: number, column: number): string
   return suffixLines.join('\n');
 }
 
-/**
- * 推断补全类型
- */
 function inferCompletionType(prefix: string, lastLine: string): CompletionItem['type'] {
   const trimmed = lastLine.trim();
-
-  if (trimmed.startsWith('import ') || trimmed.startsWith('from ')) {
-    return 'import';
-  }
-  if (trimmed.startsWith('function ') || trimmed.startsWith('const ') || trimmed.startsWith('async ')) {
-    return 'function';
-  }
-  if (trimmed.startsWith('if ') || trimmed.startsWith('for ') || trimmed.startsWith('while ') || trimmed.startsWith('switch ')) {
-    return 'statement';
-  }
-  if (trimmed.endsWith('{') || trimmed.endsWith('(') || trimmed.endsWith('[')) {
-    return 'block';
-  }
-  if (/^\s*(const|let|var)\s+\w+$/.test(trimmed)) {
-    return 'variable';
-  }
+  if (trimmed.startsWith('import ') || trimmed.startsWith('from ')) return 'import';
+  if (trimmed.startsWith('function ') || trimmed.startsWith('const ') || trimmed.startsWith('async ')) return 'function';
+  if (trimmed.startsWith('if ') || trimmed.startsWith('for ') || trimmed.startsWith('while ') || trimmed.startsWith('switch ')) return 'statement';
+  if (trimmed.endsWith('{') || trimmed.endsWith('(') || trimmed.endsWith('[')) return 'block';
+  if (/^\s*(const|let|var)\s+\w+$/.test(trimmed)) return 'variable';
   return 'other';
 }
 
@@ -81,19 +65,16 @@ function inferCompletionType(prefix: string, lastLine: string): CompletionItem['
  * 代码补全（使用 FIM - Fill In the Middle）
  */
 export async function codeComplete(request: CompletionRequest): Promise<CompletionResult> {
-  const provider = getProvider();
   const apiKey = getApiKey() || '';
   const baseUrl = getBaseUrl();
   const model = getModel();
-
-  const llmProvider = createProvider(provider, { name: provider, apiKey });
+  const provider = new DeepSeekProvider();
 
   const prefix = getPrefixContext(request.fileContent, request.cursorLine, request.cursorColumn);
   const suffix = getSuffixContext(request.fileContent, request.cursorLine, request.cursorColumn);
   const lastLine = request.fileContent.split('\n')[request.cursorLine - 1] || '';
   const completionType = inferCompletionType(prefix, lastLine);
 
-  // 构建补全提示
   const systemPrompt = `You are a code completion assistant. Complete the code at the cursor position.
 Only output the completion text, no explanations. Keep it concise and relevant.
 Language: ${request.language || 'auto-detected'}
@@ -102,7 +83,7 @@ File: ${request.filePath}`;
   const userPrompt = `Complete the code after the cursor (marked with <|CURSOR|>):\n\n${prefix}<|CURSOR|>${suffix}\n\nProvide only the text that should replace <|CURSOR|>.`;
 
   try {
-    const result = await llmProvider.createChatCompletion({
+    const result = await provider.createChatCompletion({
       apiKey,
       baseUrl,
       model,
@@ -115,24 +96,14 @@ File: ${request.filePath}`;
 
     const completionText = result.content || '';
     const lines = completionText.trim().split('\n');
-    // 取第一个非空行作为主要补全
     const mainCompletion = lines[0] || '';
 
     return {
-      completions: [{
-        text: mainCompletion,
-        score: 1.0,
-        type: completionType
-      }],
-      provider,
+      completions: [{ text: mainCompletion, score: 1.0, type: completionType }],
       model
     };
-  } catch (error) {
-    return {
-      completions: [],
-      provider,
-      model,
-    };
+  } catch {
+    return { completions: [], model };
   }
 }
 
@@ -144,15 +115,13 @@ export async function functionSignatureHint(
   fileContent: string,
   functionName: string
 ): Promise<string> {
-  const provider = getProvider();
   const apiKey = getApiKey() || '';
   const baseUrl = getBaseUrl();
   const model = getModel();
-
-  const llmProvider = createProvider(provider, { name: provider, apiKey });
+  const provider = new DeepSeekProvider();
 
   try {
-    const result = await llmProvider.createChatCompletion({
+    const result = await provider.createChatCompletion({
       apiKey,
       baseUrl,
       model,

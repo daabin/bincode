@@ -53,9 +53,4 @@ export interface ProviderConfig {
 /**
  * 支持的 Provider 类型
  */
-export type ProviderType = 'deepseek' | 'openai' | 'anthropic' | 'ollama' | 'custom';
-
-/**
- * Provider 工厂函数类型
- */
-export type ProviderFactory = (config: ProviderConfig) => LLMProvider;
+export type ProviderType = 'deepseek';
