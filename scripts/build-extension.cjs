@@ -25,14 +25,10 @@ console.log('2️⃣  Preparing extension package...');
 const extPackageJson = JSON.parse(
   fs.readFileSync('extension.package.json', 'utf8')
 );
-const mainPackageJson = JSON.parse(
-  fs.readFileSync('package.json', 'utf8')
-);
 
-// Merge dependencies
-extPackageJson.dependencies = {
-  ...mainPackageJson.dependencies
-};
+// VSCode extension doesn't need dependencies - code is pre-bundled
+// Remove dependencies to avoid vsce package errors
+delete extPackageJson.dependencies;
 
 // Write to dist-extension
 if (!fs.existsSync('dist-extension')) {
@@ -65,6 +61,15 @@ if (fs.existsSync(resourcesDir)) {
   });
 }
 console.log('\n   ✓ Resources copied\n');
+
+// 3.5. Copy LICENSE
+console.log('3️⃣.5  Copying LICENSE...');
+if (fs.existsSync('LICENSE')) {
+  fs.copyFileSync('LICENSE', 'dist-extension/LICENSE');
+  console.log('   ✓ LICENSE copied\n');
+} else {
+  console.log('   ⚠️  LICENSE not found\n');
+}
 
 // 4. Create README for extension
 console.log('4️⃣  Creating README...');

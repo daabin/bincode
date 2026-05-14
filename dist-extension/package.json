@@ -19,7 +19,6 @@
     "assistant",
     "copilot"
   ],
-  "icon": "resources/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/daabin/bincode"
@@ -27,7 +26,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./dist-extension/extension.js",
+  "main": "./interfaces/vscode/extension.js",
   "contributes": {
     "commands": [
       {
@@ -143,25 +142,8 @@
       ]
     }
   },
-  "scripts": {
-    "vscode:prepublish": "npm run build:extension",
-    "build:extension": "node scripts/build-extension.js",
-    "package": "vsce package",
-    "publish": "vsce publish"
-  },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.22.0"
-  },
-  "dependencies": {
-    "chalk": "^5.6.2",
-    "cli-highlight": "^2.1.11",
-    "express": "^5.2.1",
-    "highlight.js": "^11.11.1",
-    "ink": "^5.1.0",
-    "marked": "^15.0.12",
-    "marked-terminal": "^7.3.0",
-    "react": "^18.3.1",
-    "strip-ansi": "^7.2.0"
   }
 }
