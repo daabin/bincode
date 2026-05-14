@@ -7,9 +7,13 @@ import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath, getProvider,
 import { detectAvailableProviders, type ProviderType } from './llm/index.js';
 import { Markdown } from './markdown.js';
 
+// How often (ms) to flush streamed tokens to the React state.
+// Batching renders at this rate eliminates per-token full-screen redraws.
+const STREAM_THROTTLE_MS = 50;
+
 type Line =
   | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string; streaming?: boolean }
+  | { kind: 'assistant'; text: string }
   | { kind: 'tool'; text: string }
   | { kind: 'error'; text: string }
   | { kind: 'system'; text: string };
@@ -56,6 +60,13 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
     { kind: 'system', text: `Current provider: ${currentProvider}` },
     { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
   ]);
+
+  // Active streaming content – kept separate from `lines` so completed history
+  // is never mutated during streaming (prevents full Ink redraws per token).
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const streamingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingContentRef = useRef<string>('');
+
   const [agent, setAgent] = useState<Agent | null>(() => {
     const apiKey = getApiKey();
     const provider = getProvider();
@@ -314,68 +325,52 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
     setBusy(true);
     setLines(previous => [...previous, { kind: 'user', text: prompt }]);
 
-    // 用于累积 assistant 的内容
     let assistantContent = '';
-    let assistantLineIndex = -1;
+
+    // Throttle streaming state updates: accumulate tokens in a ref and flush to
+    // React state at most once per STREAM_THROTTLE_MS.  This batches Ink redraws
+    // from potentially 100+/sec down to ≤20/sec, eliminating the visible flash.
+    const scheduleStreamingUpdate = () => {
+      pendingContentRef.current = assistantContent;
+      if (streamingTimerRef.current === null) {
+        streamingTimerRef.current = setTimeout(() => {
+          streamingTimerRef.current = null;
+          setStreamingText(pendingContentRef.current);
+        }, STREAM_THROTTLE_MS);
+      }
+    };
+
+    // Flush any pending throttle timer and push completed assistant text to lines.
+    const finalizeStreaming = () => {
+      if (streamingTimerRef.current !== null) {
+        clearTimeout(streamingTimerRef.current);
+        streamingTimerRef.current = null;
+      }
+      if (assistantContent) {
+        setLines(prev => [...prev, { kind: 'assistant', text: assistantContent }]);
+        assistantContent = '';
+      }
+      setStreamingText(null);
+    };
 
     try {
       for await (const event of agent.run(prompt)) {
         if (event.type === 'assistant') {
-          // 累积 assistant 内容
           assistantContent += event.content;
-
-          if (assistantLineIndex === -1) {
-            // 首次收到 assistant 内容，创建新行
-            setLines(previous => {
-              assistantLineIndex = previous.length;
-              return [...previous, { kind: 'assistant', text: assistantContent, streaming: true }];
-            });
-          } else {
-            // 更新现有行（流式渲染）
-            setLines(previous => {
-              const newLines = [...previous];
-              newLines[assistantLineIndex] = {
-                kind: 'assistant',
-                text: assistantContent,
-                streaming: true
-              };
-              return newLines;
-            });
-          }
+          scheduleStreamingUpdate();
         } else {
-          // 其他事件（tool_call, tool_result 等）
-          // 如果有正在流式的 assistant 内容，标记为完成
-          if (assistantLineIndex !== -1) {
-            setLines(previous => {
-              const newLines = [...previous];
-              newLines[assistantLineIndex] = {
-                kind: 'assistant',
-                text: assistantContent,
-                streaming: false
-              };
-              return newLines;
-            });
-            assistantLineIndex = -1;
-          }
-
-          // 添加工具调用/结果
+          // Tool call / result / error: commit any buffered assistant text first.
+          finalizeStreaming();
           setLines(previous => [...previous, eventToLine(event)]);
         }
       }
-
-      // 确保最后的 assistant 内容标记为完成
-      if (assistantLineIndex !== -1) {
-        setLines(previous => {
-          const newLines = [...previous];
-          newLines[assistantLineIndex] = {
-            kind: 'assistant',
-            text: assistantContent,
-            streaming: false
-          };
-          return newLines;
-        });
-      }
+      finalizeStreaming();
     } catch (error) {
+      if (streamingTimerRef.current !== null) {
+        clearTimeout(streamingTimerRef.current);
+        streamingTimerRef.current = null;
+      }
+      setStreamingText(null);
       const message = error instanceof Error ? error.message : String(error);
       setLines(previous => [...previous, { kind: 'error', text: message }]);
     } finally {
@@ -389,10 +384,20 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
         {lines.map((line, index) => (
           <LineView key={`${index}-${line.kind}`} line={line} />
         ))}
+        {/* Streaming content lives outside `lines` so completed history is never
+            mutated during token delivery.  Plain <Text> avoids costly markdown
+            parsing on every batched update; <Markdown> is applied once the full
+            response is moved into `lines` upon completion. */}
+        {streamingText !== null && streamingText.length > 0 && (
+          <Box>
+            <Text bold>agent: </Text>
+            <Text>{streamingText}</Text>
+          </Box>
+        )}
       </Box>
-      {busy && (
+      {busy && streamingText === null && (
         <Box marginBottom={1}>
-          <Spinner active={busy} />
+          <Spinner active={true} />
         </Box>
       )}
       <StatusBar provider={currentProvider} model={getModel()} busy={busy} />
@@ -456,7 +461,7 @@ function LineView({ line }: { line: Line }) {
     return (
       <Box>
         <Text bold>agent: </Text>
-        <Markdown streaming={line.streaming ?? false}>{line.text}</Markdown>
+        <Markdown streaming={false}>{line.text}</Markdown>
       </Box>
     );
   }
