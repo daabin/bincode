@@ -3,12 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Box, render, Text, useApp, useInput } from 'ink';
 import { Agent } from './agent.js';
 import type { AgentEvent } from './types.js';
-import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath, getProvider, setProvider } from './config.js';
-import { detectAvailableProviders, type ProviderType } from './llm/index.js';
+import { getApiKey, getBaseUrl, getModel, setApiKey, getConfigPath } from './config.js';
 import { Markdown } from './markdown.js';
 
-// How often (ms) to flush streamed tokens to the React state.
-// Batching renders at this rate eliminates per-token full-screen redraws.
 const STREAM_THROTTLE_MS = 50;
 
 type Line =
@@ -18,11 +15,10 @@ type Line =
   | { kind: 'error'; text: string }
   | { kind: 'system'; text: string };
 
-// Loading spinner component
 function Spinner({ active }: { active: boolean }) {
   const [frame, setFrame] = useState(0);
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  
+
   useEffect(() => {
     if (!active) return;
     const timer = setInterval(() => {
@@ -30,18 +26,16 @@ function Spinner({ active }: { active: boolean }) {
     }, 80);
     return () => clearInterval(timer);
   }, [active]);
-  
+
   if (!active) return null;
-  
   return <Text color="yellow">{frames[frame]} Thinking...</Text>;
 }
 
-// Status bar component
-function StatusBar({ provider, model, busy }: { provider: string; model: string; busy: boolean }) {
+function StatusBar({ model, busy }: { model: string; busy: boolean }) {
   return (
     <Box borderStyle="single" borderColor={busy ? 'yellow' : 'green'} paddingX={1}>
       <Text dimColor>Provider: </Text>
-      <Text color="cyan">{provider}</Text>
+      <Text color="cyan">deepseek</Text>
       <Text dimColor> | Model: </Text>
       <Text color="cyan">{model}</Text>
       {busy && <Text color="yellow"> ⏳</Text>}
@@ -54,55 +48,39 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
   const [input, setInput] = useState('');
   const [cursor, setCursor] = useState(0);
   const [busy, setBusy] = useState(false);
-  const currentProvider = getProvider();
   const [lines, setLines] = useState<Line[]>([
     { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
-    { kind: 'system', text: `Current provider: ${currentProvider}` },
-    { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
+    { kind: 'system', text: 'Commands: /setkey <api-key> | /stats | /config | /clear' }
   ]);
 
-  // Active streaming content – kept separate from `lines` so completed history
-  // is never mutated during streaming (prevents full Ink redraws per token).
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const streamingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingContentRef = useRef<string>('');
 
   const [agent, setAgent] = useState<Agent | null>(() => {
     const apiKey = getApiKey();
-    const provider = getProvider();
-    
-    // Ollama doesn't require API key
-    if (!apiKey && provider !== 'ollama') {
-      return null;
-    }
-
+    if (!apiKey) return null;
     return new Agent({
       cwd: process.cwd(),
-      apiKey: apiKey || '',
+      apiKey,
       baseUrl: getBaseUrl(),
       model: getModel(),
-      provider,
       maxIterations: 30
     });
   });
 
   React.useEffect(() => {
     if (!agent) {
-      const provider = getProvider();
       setLines(previous => [
         ...previous,
-        { kind: 'error', text: `Missing API key for provider: ${provider}` },
-        { kind: 'system', text: `Please set it via:` },
-        { kind: 'system', text: `  1. Type: /setkey <your-api-key>` },
-        { kind: 'system', text: `  2. Or set environment variable` },
-        { kind: 'system', text: `  3. Or edit config file: ${getConfigPath()}` },
-        { kind: 'system', text: `` },
-        { kind: 'system', text: `Supported providers: deepseek, openai, anthropic, ollama` },
-        { kind: 'system', text: `Use /setprovider <provider> to switch providers` }
+        { kind: 'error', text: 'Missing DEEPSEEK_API_KEY.' },
+        { kind: 'system', text: 'Set it via:' },
+        { kind: 'system', text: '  1. Type: /setkey <your-api-key>' },
+        { kind: 'system', text: `  2. Set env var DEEPSEEK_API_KEY` },
+        { kind: 'system', text: `  3. Edit config file: ${getConfigPath()}` }
       ]);
       return;
     }
-
     if (initialPrompt) {
       void submit(initialPrompt);
     }
@@ -110,9 +88,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
   }, []);
 
   useInput((value, key) => {
-    if (busy) {
-      return;
-    }
+    if (busy) return;
 
     if (key.ctrl && value === 'c') {
       exit();
@@ -123,23 +99,22 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
       const trimmed = input.trim();
       setInput('');
       setCursor(0);
+
       if (trimmed === '/exit') {
         exit();
         return;
       }
+
       if (trimmed.startsWith('/setkey ')) {
         const newApiKey = trimmed.slice(8).trim();
         if (newApiKey.length > 0) {
           try {
             setApiKey(newApiKey);
-            const provider = getProvider();
-            // 重新初始化 agent
             const newAgent = new Agent({
               cwd: process.cwd(),
               apiKey: newApiKey,
               baseUrl: getBaseUrl(),
               model: getModel(),
-              provider,
               maxIterations: 30
             });
             setAgent(newAgent);
@@ -147,7 +122,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
               ...previous,
               { kind: 'user', text: '/setkey ***' },
               { kind: 'system', text: `✓ API key saved to ${getConfigPath()}` },
-              { kind: 'system', text: `✓ Provider: ${provider}` },
               { kind: 'system', text: '✓ Agent initialized successfully. You can start chatting now!' }
             ]);
           } catch (error) {
@@ -162,63 +136,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
           setLines(previous => [
             ...previous,
             { kind: 'user', text: trimmed },
-            { kind: 'error', text: 'Usage: /setkey <your-api-key>' },
-            { kind: 'system', text: 'Example: /setkey sk-abc123...' }
-          ]);
-        }
-        return;
-      }
-
-      if (trimmed.startsWith('/setprovider ')) {
-        const newProvider = trimmed.slice(13).trim() as ProviderType;
-        const validProviders = ['deepseek', 'openai', 'anthropic', 'ollama', 'custom'];
-        
-        if (validProviders.includes(newProvider)) {
-          try {
-            setProvider(newProvider);
-            const apiKey = getApiKey();
-            
-            // Ollama doesn't require API key
-            if (!apiKey && newProvider !== 'ollama') {
-              setAgent(null);
-              setLines(previous => [
-                ...previous,
-                { kind: 'user', text: trimmed },
-                { kind: 'system', text: `✓ Provider switched to: ${newProvider}` },
-                { kind: 'error', text: `Please set API key for ${newProvider} using /setkey` }
-              ]);
-            } else {
-              const newAgent = new Agent({
-                cwd: process.cwd(),
-                apiKey: apiKey || '',
-                baseUrl: getBaseUrl(),
-                model: getModel(),
-                provider: newProvider,
-                maxIterations: 30
-              });
-              setAgent(newAgent);
-              setLines(previous => [
-                ...previous,
-                { kind: 'user', text: trimmed },
-                { kind: 'system', text: `✓ Provider switched to: ${newProvider}` },
-                { kind: 'system', text: `✓ Model: ${getModel()}` },
-                { kind: 'system', text: '✓ Agent initialized successfully!' }
-              ]);
-            }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            setLines(previous => [
-              ...previous,
-              { kind: 'user', text: trimmed },
-              { kind: 'error', text: `Failed to switch provider: ${message}` }
-            ]);
-          }
-        } else {
-          setLines(previous => [
-            ...previous,
-            { kind: 'user', text: trimmed },
-            { kind: 'error', text: `Invalid provider: ${newProvider}` },
-            { kind: 'system', text: `Valid providers: ${validProviders.join(', ')}` }
+            { kind: 'error', text: 'Usage: /setkey <your-api-key>' }
           ]);
         }
         return;
@@ -230,7 +148,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
           const total = globalTokenCounter.getTotalUsage();
           const today = globalTokenCounter.getTodayUsage();
           const records = globalTokenCounter.getRecords(5);
-
           setLines(previous => [
             ...previous,
             { kind: 'user', text: '/stats' },
@@ -252,8 +169,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
       if (trimmed === '/clear') {
         setLines([
           { kind: 'system', text: 'bincode code agent. Type /exit to quit.' },
-          { kind: 'system', text: `Current provider: ${getProvider()}` },
-          { kind: 'system', text: 'Commands: /setkey <api-key> | /setprovider <provider> | /stats | /config | /clear' }
+          { kind: 'system', text: 'Commands: /setkey <api-key> | /stats | /config | /clear' }
         ]);
         return;
       }
@@ -285,7 +201,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
       return;
     }
 
-    // Arrow keys for cursor movement
     if (key.leftArrow) {
       setCursor(c => Math.max(0, c - 1));
       return;
@@ -294,14 +209,11 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
       setCursor(c => Math.min(input.length, c + 1));
       return;
     }
-    // Home and End keys are not in the Key type, but can be detected via input value
     if (value === '\x1b[H' || value === '\x1bOH') {
-      // Home key
       setCursor(0);
       return;
     }
     if (value === '\x1b[F' || value === '\x1bOF') {
-      // End key
       setCursor(input.length);
       return;
     }
@@ -317,7 +229,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
       setLines(previous => [
         ...previous,
         { kind: 'user', text: prompt },
-        { kind: 'error', text: 'No agent available. Please set your API key and restart the CLI.' }
+        { kind: 'error', text: 'No agent available. Please set your API key with /setkey.' }
       ]);
       return;
     }
@@ -327,9 +239,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
 
     let assistantContent = '';
 
-    // Throttle streaming state updates: accumulate tokens in a ref and flush to
-    // React state at most once per STREAM_THROTTLE_MS.  This batches Ink redraws
-    // from potentially 100+/sec down to ≤20/sec, eliminating the visible flash.
     const scheduleStreamingUpdate = () => {
       pendingContentRef.current = assistantContent;
       if (streamingTimerRef.current === null) {
@@ -340,7 +249,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
       }
     };
 
-    // Flush any pending throttle timer and push completed assistant text to lines.
     const finalizeStreaming = () => {
       if (streamingTimerRef.current !== null) {
         clearTimeout(streamingTimerRef.current);
@@ -359,7 +267,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
           assistantContent += event.content;
           scheduleStreamingUpdate();
         } else {
-          // Tool call / result / error: commit any buffered assistant text first.
           finalizeStreaming();
           setLines(previous => [...previous, eventToLine(event)]);
         }
@@ -384,10 +291,6 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
         {lines.map((line, index) => (
           <LineView key={`${index}-${line.kind}`} line={line} />
         ))}
-        {/* Streaming content lives outside `lines` so completed history is never
-            mutated during token delivery.  Plain <Text> avoids costly markdown
-            parsing on every batched update; <Markdown> is applied once the full
-            response is moved into `lines` upon completion. */}
         {streamingText !== null && streamingText.length > 0 && (
           <Box>
             <Text bold>agent: </Text>
@@ -400,7 +303,7 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
           <Spinner active={true} />
         </Box>
       )}
-      <StatusBar provider={currentProvider} model={getModel()} busy={busy} />
+      <StatusBar model={getModel()} busy={busy} />
       <Box
         borderStyle="round"
         borderColor={busy ? 'yellow' : 'green'}
@@ -417,16 +320,12 @@ function App({ initialPrompt }: { initialPrompt?: string }) {
 }
 
 function InputBox({ text, cursor, busy }: { text: string; cursor: number; busy: boolean }) {
-  if (busy) {
-    return <Text>thinking</Text>;
-  }
+  if (busy) return <Text>thinking</Text>;
 
   if (text.length === 0) {
     return (
       <Box>
-        <Text backgroundColor="white" color="black">
-          {' '}
-        </Text>
+        <Text backgroundColor="white" color="black"> </Text>
       </Box>
     );
   }
@@ -438,9 +337,7 @@ function InputBox({ text, cursor, busy }: { text: string; cursor: number; busy: 
   return (
     <Box>
       <Text>{before}</Text>
-      <Text backgroundColor="white" color="black">
-        {at}
-      </Text>
+      <Text backgroundColor="white" color="black">{at}</Text>
       <Text>{after}</Text>
     </Box>
   );
@@ -450,9 +347,7 @@ function LineView({ line }: { line: Line }) {
   if (line.kind === 'user') {
     return (
       <Box>
-        <Text color="cyan" bold>
-          you:{' '}
-        </Text>
+        <Text color="cyan" bold>you: </Text>
         <Markdown streaming={false}>{line.text}</Markdown>
       </Box>
     );
@@ -478,17 +373,14 @@ function eventToLine(event: AgentEvent): Line {
   if (event.type === 'assistant') {
     return { kind: 'assistant', text: event.content };
   }
-
   if (event.type === 'tool_call') {
     return { kind: 'tool', text: `tool: ${event.name} ${JSON.stringify(event.args)}` };
   }
-
   if (event.type === 'tool_result') {
     const firstLine = event.result.split('\n')[0] ?? '';
     const suffix = event.result.includes('\n') ? ' ...' : '';
     return { kind: 'tool', text: `tool result: ${event.name}: ${firstLine}${suffix}` };
   }
-
   return { kind: 'error', text: event.message };
 }
 

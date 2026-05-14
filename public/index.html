@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bincode — AI Code Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --tool-bg: #1c2128;
+      --user-bg: #1a2332;
+      --agent-bg: #0d1f0d;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    header .logo { font-weight: 700; color: var(--accent); font-size: 16px; }
+    header .model-badge {
+      font-size: 11px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2px 8px;
+      color: var(--muted);
+    }
+    header .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-left: auto;
+      transition: background 0.3s;
+    }
+    header .status-dot.busy { background: var(--yellow); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    /* ── Chat area ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 100%;
+    }
+
+    .msg-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .msg.user .msg-label  { color: var(--accent); }
+    .msg.agent .msg-label { color: var(--green); }
+    .msg.tool  .msg-label { color: var(--muted); }
+    .msg.error .msg-label { color: var(--red); }
+    .msg.system .msg-label { color: var(--muted); }
+
+    .msg-body {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+    }
+    .msg.user  .msg-body { background: var(--user-bg); border-color: var(--accent); }
+    .msg.agent .msg-body { background: var(--agent-bg); border-color: #2d4a2d; }
+    .msg.tool  .msg-body { background: var(--tool-bg); font-size: 12px; color: var(--muted); }
+    .msg.error .msg-body { background: #1a0d0d; border-color: var(--red); color: var(--red); }
+
+    /* Tool call toggle */
+    .tool-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tool-toggle::before { content: '▶'; font-size: 10px; transition: transform 0.2s; }
+    .tool-toggle.open::before { transform: rotate(90deg); }
+    .tool-detail {
+      display: none;
+      margin-top: 6px;
+      padding: 8px;
+      background: var(--bg);
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .tool-detail.visible { display: block; }
+
+    /* Streaming cursor */
+    .cursor::after {
+      content: '▋';
+      animation: blink 0.8s step-start infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+    /* ── Input area ── */
+    #input-area {
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+    }
+
+    #input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      resize: none;
+      min-height: 44px;
+      max-height: 180px;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+    }
+    #input:focus { border-color: var(--accent); }
+    #input::placeholder { color: var(--muted); }
+
+    #send-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #0d1117;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0 16px;
+      align-self: flex-end;
+      height: 44px;
+      transition: opacity 0.15s;
+    }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #send-btn:not(:disabled):hover { opacity: 0.85; }
+
+    /* ── Welcome screen ── */
+    #welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 12px;
+      color: var(--muted);
+      padding: 32px;
+      text-align: center;
+    }
+    #welcome h2 { color: var(--text); font-size: 20px; }
+    #welcome p { max-width: 420px; line-height: 1.6; }
+    #welcome code {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: var(--accent);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">⬡ bincode</span>
+  <span class="model-badge" id="model-badge">deepseek-chat</span>
+  <span class="status-dot" id="status-dot"></span>
+</header>
+
+<div id="chat">
+  <div id="welcome">
+    <h2>bincode — AI Code Agent</h2>
+    <p>Powered by DeepSeek. Ask me to read, write, or search files in the current workspace.</p>
+    <p style="margin-top:8px;font-size:12px;">
+      Make sure the server was started with <code>DEEPSEEK_API_KEY</code> set.
+    </p>
+  </div>
+</div>
+
+<div id="input-area">
+  <textarea
+    id="input"
+    placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"
+    rows="1"
+    autofocus
+  ></textarea>
+  <button id="send-btn" title="Send">➤</button>
+</div>
+
+<script>
+  const chatEl   = document.getElementById('chat');
+  const welcome  = document.getElementById('welcome');
+  const inputEl  = document.getElementById('input');
+  const sendBtn  = document.getElementById('send-btn');
+  const statusDot = document.getElementById('status-dot');
+  const modelBadge = document.getElementById('model-badge');
+
+  let sessionId = localStorage.getItem('bincode-session') || null;
+  let busy = false;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function setBusy(val) {
+    busy = val;
+    sendBtn.disabled = val;
+    inputEl.disabled = val;
+    statusDot.className = 'status-dot' + (val ? ' busy' : '');
+  }
+
+  function removeWelcome() {
+    if (welcome && welcome.parentNode) welcome.remove();
+  }
+
+  function scrollBottom() {
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function createMsg(kind) {
+    const labels = { user: 'You', agent: 'Agent', tool: 'Tool', error: 'Error', system: 'System' };
+    removeWelcome();
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${kind}`;
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = labels[kind] || kind;
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+    wrap.appendChild(label);
+    wrap.appendChild(body);
+    chatEl.appendChild(wrap);
+    scrollBottom();
+    return body;
+  }
+
+  function appendSystem(text) {
+    const body = createMsg('system');
+    body.textContent = text;
+  }
+
+  // ── Input auto-resize ────────────────────────────────────────────────────
+
+  inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 180) + 'px';
+  });
+
+  // ── Send on Enter (Shift+Enter = newline) ────────────────────────────────
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  // ── Main send function ───────────────────────────────────────────────────
+
+  async function sendMessage() {
+    const message = inputEl.value.trim();
+    if (!message || busy) return;
+
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    setBusy(true);
+
+    // Show user message
+    const userBody = createMsg('user');
+    userBody.textContent = message;
+
+    // Streaming assistant body
+    let agentBody = null;
+    let agentText = '';
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, sessionId })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: response.statusText }));
+        const body = createMsg('error');
+        body.textContent = err.error || 'Request failed';
+        setBusy(false);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          let event;
+          try { event = JSON.parse(trimmed.slice(6)); } catch { continue; }
+
+          handleEvent(event);
+        }
+      }
+
+    } catch (err) {
+      const body = createMsg('error');
+      body.textContent = err.message || 'Network error';
+    } finally {
+      // Remove streaming cursor
+      if (agentBody) agentBody.classList.remove('cursor');
+      setBusy(false);
+      scrollBottom();
+    }
+
+    function handleEvent(event) {
+      if (event.type === 'session') {
+        sessionId = event.sessionId;
+        localStorage.setItem('bincode-session', sessionId);
+        if (event.model) modelBadge.textContent = event.model;
+        return;
+      }
+
+      if (event.type === 'done') {
+        if (agentBody) agentBody.classList.remove('cursor');
+        return;
+      }
+
+      if (event.type === 'assistant') {
+        if (!agentBody) {
+          agentBody = createMsg('agent');
+          agentBody.classList.add('cursor');
+        }
+        agentText += event.content;
+        agentBody.textContent = agentText;
+        scrollBottom();
+        return;
+      }
+
+      if (event.type === 'tool_call') {
+        // Commit any streaming agent text first
+        if (agentBody) {
+          agentBody.classList.remove('cursor');
+          agentBody = null;
+          agentText = '';
+        }
+        const body = createMsg('tool');
+        body.innerHTML = '';
+        const toggle = document.createElement('div');
+        toggle.className = 'tool-toggle';
+        toggle.textContent = `⚙ ${event.name}`;
+        const detail = document.createElement('pre');
+        detail.className = 'tool-detail';
+        detail.textContent = JSON.stringify(event.args, null, 2);
+        toggle.addEventListener('click', () => {
+          toggle.classList.toggle('open');
+          detail.classList.toggle('visible');
+        });
+        body.appendChild(toggle);
+        body.appendChild(detail);
+        scrollBottom();
+        return;
+      }
+
+      if (event.type === 'tool_result') {
+        // Briefly show result inline (first line)
+        const firstLine = (event.result || '').split('\n')[0];
+        const suffix = event.result.includes('\n') ? ' …' : '';
+        const body = createMsg('tool');
+        body.textContent = `↩ ${event.name}: ${firstLine}${suffix}`;
+        scrollBottom();
+        return;
+      }
+
+      if (event.type === 'error') {
+        if (agentBody) { agentBody.classList.remove('cursor'); agentBody = null; agentText = ''; }
+        const body = createMsg('error');
+        body.textContent = event.message;
+        scrollBottom();
+      }
+    }
+  }
+
+  // ── On load: show session info ──────────────────────────────────────────
+  if (sessionId) {
+    appendSystem(`Resuming session ${sessionId.slice(0, 8)}…`);
+  }
+</script>
+
+</body>
+</html>

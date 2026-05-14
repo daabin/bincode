@@ -1,5 +1,4 @@
-import { createProvider, type ProviderType } from './llm/index.js';
-import type { LLMProvider } from './llm/types.js';
+import { DeepSeekProvider } from './llm/index.js';
 import { runTool, toolDefinitions } from './tools.js';
 import type { AgentConfig, AgentEvent, ChatMessage } from './types.js';
 import { globalTokenCounter, estimateMessagesTokens } from './tokens.js';
@@ -12,14 +11,10 @@ Never attempt to access paths outside the workspace.`;
 
 export class Agent {
   private readonly messages: ChatMessage[];
-  private readonly provider: LLMProvider;
+  private readonly provider = new DeepSeekProvider();
 
-  constructor(private readonly config: AgentConfig & { provider?: ProviderType }) {
+  constructor(private readonly config: AgentConfig) {
     this.messages = [{ role: 'system', content: systemPrompt }];
-    this.provider = createProvider(config.provider || 'deepseek', {
-      name: config.provider || 'deepseek',
-      apiKey: config.apiKey
-    });
   }
 
   async *run(userInput: string): AsyncGenerator<AgentEvent> {
@@ -30,7 +25,6 @@ export class Agent {
       let finalToolCalls: any[] | undefined;
       let finalReasoning: string | undefined;
 
-      // 使用流式 API
       for await (const chunk of this.provider.createChatCompletionStream({
         apiKey: this.config.apiKey,
         baseUrl: this.config.baseUrl,
@@ -39,7 +33,6 @@ export class Agent {
         tools: toolDefinitions
       })) {
         if (chunk.content) {
-          // 逐 token 输出内容
           accumulatedContent += chunk.content;
           yield { type: 'assistant', content: chunk.content };
         }
@@ -50,7 +43,6 @@ export class Agent {
         }
       }
 
-      // 保存完整的 assistant 消息
       this.messages.push({
         role: 'assistant',
         content: accumulatedContent || null,
@@ -58,14 +50,13 @@ export class Agent {
         reasoning_content: finalReasoning
       });
 
-      // 记录 Token 使用
       const promptTokens = estimateMessagesTokens(this.messages.slice(0, -1));
       const completionTokens = estimateMessagesTokens([{
         role: 'assistant',
         content: accumulatedContent + (finalReasoning || '')
       }]);
       globalTokenCounter.record(
-        this.config.provider || 'deepseek',
+        'deepseek',
         this.config.model,
         {
           promptTokens,
@@ -74,13 +65,11 @@ export class Agent {
         }
       );
 
-      // 如果没有工具调用，结束
       const toolCalls = finalToolCalls ?? [];
       if (toolCalls.length === 0) {
         return;
       }
 
-      // 执行工具调用
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
         const args = parseToolArguments(toolCall.function.arguments);

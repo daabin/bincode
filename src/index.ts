@@ -1,5 +1,5 @@
 /**
- * bincode - A powerful CLI code agent
+ * bincode - A powerful CLI code agent powered by DeepSeek
  *
  * This module exports the core components for programmatic use.
  */
@@ -8,8 +8,8 @@
 export { Agent } from './agent.js';
 export type { AgentConfig, AgentEvent } from './types.js';
 
-// LLM Providers
-export { createProvider, detectAvailableProviders } from './llm/index.js';
+// LLM Provider
+export { DeepSeekProvider, createProvider } from './llm/index.js';
 export type { LLMProvider, ProviderConfig, ProviderType } from './llm/types.js';
 
 // Tools
@@ -22,8 +22,6 @@ export {
   saveConfig,
   getApiKey,
   setApiKey,
-  getProvider,
-  setProvider,
   getBaseUrl,
   getModel,
   getLLMConfig
