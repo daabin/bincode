@@ -77,26 +77,31 @@ app.post('/api/chat', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
-  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const send = (data: object) => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
 
   // First event: session assignment
   send({ type: 'session', sessionId });
 
+  let aborted = false;
+
   (async () => {
     try {
       for await (const event of agent.run(message.trim())) {
+        if (aborted) break;
         send(event);
       }
       send({ type: 'done' });
     } catch (err) {
       send({ type: 'error', message: err instanceof Error ? err.message : String(err) });
     } finally {
-      res.end();
+      if (!res.writableEnded) res.end();
     }
   })();
 
-  // Clean up if client disconnects
-  req.on('close', () => res.end());
+  // Clean up if client disconnects (listen on res, not req)
+  res.on('close', () => { aborted = true; });
 });
 
 /**
