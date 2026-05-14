@@ -8,6 +8,7 @@
 import { Agent } from './agent.js';
 import { DeepSeekProvider } from '../llm/index.js';
 import { createServiceContainer } from '../services/index.js';
+import { createDefaultToolRegistry } from '../tools/index.js';
 import { getApiKey, getBaseUrl, getModel } from '../config/index.js';
 import type { AgentConfig } from '../types/agent.js';
 
@@ -48,10 +49,18 @@ export function createAgent(options: CreateAgentOptions = {}): Agent {
     provider: 'deepseek'
   };
 
-  return new Agent({
+  const agent = new Agent({
     config,
     provider,
     services,
     systemPrompt: options.systemPrompt
   });
+
+  // Register default tools
+  const toolRegistry = createDefaultToolRegistry();
+  for (const tool of toolRegistry.getAll()) {
+    agent.getToolEngine().registry.register(tool);
+  }
+
+  return agent;
 }

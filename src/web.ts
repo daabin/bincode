@@ -66,7 +66,9 @@ app.post('/api/chat', (req, res) => {
   res.flushHeaders();
 
   const send = (data: object) => {
-    if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\\n\\n`);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
   };
 
   send({ type: 'session', sessionId });
@@ -81,14 +83,17 @@ app.post('/api/chat', (req, res) => {
       }
       send({ type: 'done' });
     } catch (err) {
+      console.error('[Web] Error:', err);
       send({ type: 'error', message: err instanceof Error ? err.message : String(err) });
     } finally {
       if (!res.writableEnded) res.end();
     }
   })();
 
-  req.on('close', () => {
-    aborted = true;
+  res.on('close', () => {
+    if (!res.writableFinished) {
+      aborted = true;
+    }
   });
 });
 
@@ -101,11 +106,11 @@ export function startServer(port?: number): Promise<void> {
 
   return new Promise((resolve, reject) => {
     const server = app.listen(PORT, () => {
-      console.log(`\\n🚀 bincode web server running at http://localhost:${PORT}\\n`);
+      console.log(`\n🚀 bincode web server running at http://localhost:${PORT}\n`);
       console.log('  DEEPSEEK_API_KEY:', getApiKey() ? '✓ set' : '✗ not set (required)');
       console.log('  Model:', getModel());
       console.log('  Base URL:', getBaseUrl());
-      console.log('\\nPress Ctrl+C to stop.\\n');
+      console.log('\nPress Ctrl+C to stop.\n');
       resolve();
     });
 

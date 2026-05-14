@@ -311,6 +311,11 @@ const agent = createAgent({ cwd, apiKey, model });
 ✅ 未使用的 provider 代码
 ✅ 混乱的目录结构
 ✅ 不一致的导入路径
+✅ Web 服务器 SSE 流式传输问题（2026-05-14 修复）
+  - 问题：Agent 工具未注册导致无响应
+  - 解决：在 createAgent() 工厂函数中添加工具注册
+  - 问题：req.on('close') 事件过早触发
+  - 解决：改用 res.on('close') 并检查 writableFinished
 
 ### 待解决
 - [ ] 测试文件中的旧 provider 引用

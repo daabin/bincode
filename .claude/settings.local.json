@@ -30,10 +30,31 @@
       "Bash(PORT=3002 npm run web:dev)",
       "Bash(curl -s http://localhost:3002/api/health)",
       "Bash(awk '{print $9}')",
-      "Bash(tee /tmp/build_output.log)"
+      "Bash(tee /tmp/build_output.log)",
+      "Bash(pkill -f \"tsx src/web.ts\")",
+      "Bash(PORT=3003 npm run web:dev)",
+      "Bash(curl -X POST http://localhost:3003/api/chat -H 'Content-Type: application/json' -d '{\"message\":\"hello\"}' --no-buffer)",
+      "Bash(pkill -f \"tsx src/web.ts\" 2>/dev/null && sleep 1 && PORT=3003 npm run web:dev > /tmp/web_server.log 2>&1 &)",
+      "Bash(curl -X POST https://api.deepseek.com/chat/completions -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fbb61766a06a40459dc6d92f022733e0' -d '{\"model\":\"deepseek-chat\",\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}],\"stream\":false,\"max_tokens\":20}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"hello\"}' -N)",
+      "Bash(lsof -ti:3003)",
+      "Bash(xargs kill -9)",
+      "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"list files in current directory\"}' -N)",
+      "Read(//Users/daabin/**)",
+      "Bash(curl -s https://api.deepseek.com/chat/completions -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(node -e \"console.log\\(require\\('./dist/config/env.js'\\).getApiKey\\(\\)?.substring\\(0,20\\)\\)\")",
+      "Bash(node -e \"import\\('./dist/config/env.js'\\).then\\(m => console.log\\(m.getApiKey\\(\\)?.substring\\(0,20\\)\\)\\)\")",
+      "Bash(curl -s --max-time 10 https://api.deepseek.com/chat/completions -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fbb61766a06a40459dc6d92f022733e0' -d '{ *)",
+      "Bash(curl -s --no-buffer --max-time 10 https://api.deepseek.com/chat/completions -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-fbb61766a06a40459dc6d92f022733e0' -d '{ *)",
+      "Bash(node test-api.js)",
+      "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"say hello\"}' -N)",
+      "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"hello\"}' -N -m 10)",
+      "Bash(node test-sse-client.js)"
     ],
     "additionalDirectories": [
-      "/Users/daabin/codinglab/bincode/src"
+      "/Users/daabin/codinglab/bincode/src",
+      "/tmp"
     ]
   }
 }

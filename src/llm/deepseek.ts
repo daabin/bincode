@@ -191,6 +191,8 @@ export class DeepSeekProvider implements LLMProvider {
           }
         }
       }
+    } catch (error) {
+      throw error;
     } finally {
       reader.releaseLock();
     }
