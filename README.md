@@ -1,6 +1,6 @@
 # bincode
 
-一个强大的 CLI 代码智能助手，支持多 LLM Provider、代码搜索、智能工具和会话管理。
+一个强大的 CLI 代码智能助手，由 **DeepSeek** 驱动，支持代码搜索、智能工具和会话管理。
 
 [![npm version](https://img.shields.io/npm/v/@daabin/bincode.svg)](https://www.npmjs.com/package/@daabin/bincode)
 [![Node.js](https://img.shields.io/node/v/@daabin/bincode.svg)](https://nodejs.org)
@@ -9,11 +9,11 @@
 
 ## 功能特性
 
-### 🤖 多 LLM 支持
-- **DeepSeek** (默认) - 高性价比，中文友好
-- **OpenAI** - GPT-4o, GPT-4-turbo
-- **Anthropic** - Claude 3.5 Sonnet
-- **Ollama** - 本地模型，隐私优先
+### 🤖 DeepSeek 驱动
+- **高性价比** - 优秀的性能价格比
+- **中文友好** - 对中文理解和生成的原生支持
+- **快速响应** - 毫秒级的响应速度
+- **强大推理** - 深度思考和代码理解能力
 
 ### 🔧 20+ 智能工具
 | 类别 | 工具 |
@@ -106,22 +106,12 @@ bincode
 ```bash
 # 编辑 ~/.bincode/config.json
 {
-  "provider": "deepseek",
   "apiKey": "sk-your-api-key",
   "model": "deepseek-chat"
 }
 ```
 
-### 2. 切换 LLM Provider
-
-```bash
-> /setprovider openai    # 使用 OpenAI
-> /setprovider anthropic # 使用 Claude
-> /setprovider ollama    # 使用本地模型
-> /setprovider deepseek  # 切回 DeepSeek
-```
-
-### 3. 开始使用
+### 2. 开始使用
 
 ```text
 > 帮我查看 README.md 并优化文档结构
@@ -137,10 +127,10 @@ bincode
 | 命令 | 说明 |
 |------|------|
 | `/setkey <key>` | 保存 API Key |
-| `/setprovider <name>` | 切换 LLM Provider |
 | `/stats` | 查看 Token 使用统计 |
 | `/config` | 显示当前配置 |
 | `/clear` | 清空对话历史 |
+| `/help` | 显示帮助信息 |
 | `/exit` | 退出 CLI |
 
 ---
@@ -149,12 +139,9 @@ bincode
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `DEEPSEEK_API_KEY` | - | DeepSeek API Key |
-| `OPENAI_API_KEY` | - | OpenAI API Key |
-| `ANTHROPIC_API_KEY` | - | Anthropic API Key |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
-| `BINCODE_PROVIDER` | `deepseek` | 默认 Provider |
-| `BINCODE_MODEL` | - | 默认模型 |
+| `DEEPSEEK_API_KEY` | - | DeepSeek API Key (必需) |
+| `BINCODE_API_KEY` | - | 备用 API Key |
+| `BINCODE_MODEL` | `deepseek-chat` | 默认模型 |
 
 ---
 
@@ -164,7 +151,6 @@ bincode
 
 ```json
 {
-  "provider": "deepseek",
   "apiKey": "sk-your-api-key",
   "baseUrl": "https://api.deepseek.com",
   "model": "deepseek-chat",
@@ -178,19 +164,23 @@ bincode
 ## 作为库使用
 
 ```typescript
-import { Agent, createProvider, toolDefinitions } from '@daabin/bincode';
+import { createAgent } from '@daabin/bincode';
 
-// 创建 Agent
-const agent = new Agent({
-  provider: 'deepseek',
+// 创建 Agent（使用默认配置）
+const agent = createAgent();
+
+// 或者自定义配置
+const agent = createAgent({
+  cwd: process.cwd(),
   apiKey: process.env.DEEPSEEK_API_KEY,
-  model: 'deepseek-chat'
+  model: 'deepseek-chat',
+  maxIterations: 50
 });
 
 // 运行对话
 for await (const event of agent.run('帮我分析这个项目')) {
-  if (event.type === 'content') {
-    process.stdout.write(event.delta);
+  if (event.type === 'assistant') {
+    process.stdout.write(event.content);
   }
 }
 
@@ -207,21 +197,26 @@ const results = searchSymbols(entries, 'Agent');
 ```
 bincode/
 ├── src/
-│   ├── cli.tsx           # CLI 入口
-│   ├── agent.ts          # Agent 主循环
-│   ├── tools.ts          # 20+ 工具定义
-│   ├── llm/              # LLM Provider 实现
-│   │   ├── deepseek.ts
-│   │   ├── openai.ts
-│   │   ├── anthropic.ts
-│   │   └── ollama.ts
-│   ├── indexer.ts        # 代码索引
-│   ├── image.ts          # 图片分析
-│   ├── completion.ts     # 代码补全
-│   ├── plugin.ts         # 插件系统
-│   ├── mcp.ts            # MCP 协议
-│   └── session.ts        # 会话管理
-├── dist/                 # 编译输出
+│   ├── interfaces/       # 接口适配器层
+│   │   ├── cli/         # CLI 界面 (React Ink)
+│   │   ├── web/         # Web 服务器 (Express + SSE)
+│   │   └── vscode/      # VSCode 扩展 (未来)
+│   ├── core/            # 核心引擎
+│   │   ├── agent.ts     # Agent 主循环
+│   │   ├── tool-engine.ts
+│   │   ├── factory.ts   # Agent 工厂
+│   │   └── ...
+│   ├── tools/           # 工具实现
+│   │   ├── file-tools.ts
+│   │   ├── git-tools.ts
+│   │   └── ...
+│   ├── llm/             # LLM Provider
+│   │   └── deepseek.ts  # DeepSeek 实现
+│   ├── services/        # 服务层抽象
+│   ├── config/          # 配置管理
+│   ├── types/           # 类型定义
+│   └── index.ts         # 公共 API
+├── dist/                # 编译输出
 └── package.json
 ```
 

@@ -18,7 +18,19 @@
       "Bash(node /Users/daabin/codinglab/bincode/examples/testAgentOutput.js)",
       "Bash(rm -f src/*.backup src/markdown-new.tsx && ls -la *.md)",
       "Bash(chmod +x /Users/daabin/codinglab/bincode/examples/testStreaming.js)",
-      "Bash(node /Users/daabin/codinglab/bincode/examples/testStreaming.js)"
+      "Bash(node /Users/daabin/codinglab/bincode/examples/testStreaming.js)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(PORT=3001 npm run web:dev)",
+      "Bash(curl -s http://localhost:3001)",
+      "Bash(xargs ls -la)",
+      "Bash(xargs sed -i '' 's|from '\\\\''\\\\.\\\\.\\\\/|from '\\\\''\\\\.\\\\.\\\\/\\\\.\\\\.\\\\/ |g')",
+      "Bash(xargs sed -i '' 's|from '\\\\''\\\\.\\\\.\\\\/\\\\.\\\\.\\\\/ |from '\\\\''\\\\.\\\\.\\\\/\\\\.\\\\.|g')",
+      "Bash(sed -i '' 's|from '\\\\''\\\\.\\\\/llm\\\\/|from '\\\\''\\\\.\\\\.\\\\/\\\\.\\\\.\\\\/llm\\\\/|g' src/interfaces/vscode/completion-provider.ts)",
+      "Bash(sed -i '' 's|from '\\\\''\\\\.\\\\/config\\\\/|from '\\\\''\\\\.\\\\.\\\\/\\\\.\\\\.\\\\/config\\\\/|g' src/interfaces/vscode/completion-provider.ts)",
+      "Bash(PORT=3002 npm run web:dev)",
+      "Bash(curl -s http://localhost:3002/api/health)",
+      "Bash(awk '{print $9}')",
+      "Bash(tee /tmp/build_output.log)"
     ],
     "additionalDirectories": [
       "/Users/daabin/codinglab/bincode/src"

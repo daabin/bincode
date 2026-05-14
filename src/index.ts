@@ -3,15 +3,15 @@
  *
  * Main entry point with unified exports for programmatic use.
  * Architecture:
- *   - types/     : Type definitions
- *   - core/      : Agent engine, tool engine, message pipeline
- *   - services/  : Abstracted service layer (file, git, search, web, etc.)
- *   - tools/     : Tool definitions grouped by category
- *   - llm/       : LLM provider implementations
- *   - config/    : Configuration management
- *   - cli/       : CLI application (React Ink)
- *   - plugins/   : Plugin system
- *   - utils/     : Utility functions
+ *   - types/       : Type definitions
+ *   - core/        : Agent engine, tool engine, message pipeline
+ *   - services/    : Abstracted service layer (file, git, search, web, etc.)
+ *   - tools/       : Tool definitions grouped by category
+ *   - llm/         : DeepSeek LLM provider
+ *   - config/      : Configuration management
+ *   - interfaces/  : Interface adapters (CLI, Web, VSCode)
+ *   - plugins/     : Plugin system
+ *   - utils/       : Utility functions
  */
 
 // ===== Types =====
@@ -27,10 +27,9 @@ export type {
   LLMConfig
 } from './types/index.js';
 
-<<<<<<< HEAD
 // ===== Core Engine =====
-export { Agent, ToolEngine, ConversationManager, MessagePipeline } from './core/index.js';
-export type { AgentOptions, ToolEngineConfig, MessageMiddleware } from './core/index.js';
+export { Agent, ToolEngine, ConversationManager, MessagePipeline, createAgent } from './core/index.js';
+export type { AgentOptions, ToolEngineConfig, MessageMiddleware, CreateAgentOptions } from './core/index.js';
 
 // ===== Services =====
 export {
@@ -73,11 +72,7 @@ export {
 export type { ToolHandler, ToolContext } from './tools/index.js';
 
 // ===== LLM Providers =====
-export { createProvider, detectAvailableProviders } from './llm/index.js';
-=======
-// LLM Provider
-export { DeepSeekProvider, createProvider } from './llm/index.js';
->>>>>>> agents/refactor-project-deepseek-web-support
+export { DeepSeekProvider, getSupportedProviders } from './llm/index.js';
 export type { LLMProvider, ProviderConfig, ProviderType } from './llm/types.js';
 
 // ===== Configuration =====

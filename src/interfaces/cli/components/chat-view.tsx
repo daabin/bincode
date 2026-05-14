@@ -12,10 +12,10 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Text, Box, useStdout } from 'ink';
-import type { ToolGroup, CompletedTurn } from '../../types/agent.js';
-import { Markdown } from '../../markdown.js';
+import type { ToolGroup, CompletedTurn } from '../../../types/agent.js';
+import { Markdown } from '../../../markdown.js';
 import { ToolSection } from './tool-section.js';
-import { renderMarkdownToTerminal } from '../../utils/terminalMarkdownRenderer.js';
+import { renderMarkdownToTerminal } from '../../../utils/terminalMarkdownRenderer.js';
 import chalk from 'chalk';
 
 /** Max lines of streaming content shown inside Ink's managed area */

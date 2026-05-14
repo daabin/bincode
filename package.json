@@ -1,7 +1,7 @@
 {
   "name": "@daabin/bincode",
   "version": "0.2.1",
-  "description": "A powerful CLI code agent with multi-LLM support, code search, and intelligent tools",
+  "description": "A powerful CLI code agent powered by DeepSeek with intelligent tools and code understanding",
   "author": "daabin",
   "license": "MIT",
   "repository": {
@@ -18,15 +18,13 @@
     "ai",
     "llm",
     "deepseek",
-    "openai",
-    "anthropic",
     "code-assistant",
     "terminal"
   ],
   "type": "module",
   "bin": {
     "bincode": "./dist/cli.js",
-    "bincode-web": "./dist/server.js"
+    "bincode-web": "./dist/web.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -44,11 +42,11 @@
   ],
   "scripts": {
     "build": "tsc && npm run fix-shebang",
-    "fix-shebang": "node -e \"const fs=require('fs'); const f='dist/cli.js'; const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!')) fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\"",
+    "fix-shebang": "node -e \"const fs=require('fs'); ['dist/cli.js','dist/web.js'].forEach(f => { if(fs.existsSync(f)) { const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!')) fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c); } })\"",
     "dev": "tsx src/cli.tsx",
     "start": "node dist/cli.js",
-    "web": "node dist/server.js",
-    "web:dev": "tsx src/server.ts",
+    "web": "node dist/web.js",
+    "web:dev": "tsx src/web.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

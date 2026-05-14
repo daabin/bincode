@@ -5,14 +5,7 @@ export type { LLMProvider, ProviderConfig, ProviderType } from './types.js';
 export { DeepSeekProvider } from './deepseek.js';
 
 /**
- * Provider 工厂（仅支持 deepseek）
- */
-export function createProvider(_type: ProviderType, _config: ProviderConfig): LLMProvider {
-  return new DeepSeekProvider();
-}
-
-/**
- * 获取所有支持的 Provider 类型
+ * 获取所有支持的 Provider 类型（仅 DeepSeek）
  */
 export function getSupportedProviders(): ProviderType[] {
   return ['deepseek'];
@@ -21,7 +14,7 @@ export function getSupportedProviders(): ProviderType[] {
 /**
  * 获取 Provider 的默认配置
  */
-export function getProviderDefaults(_type: ProviderType): {
+export function getProviderDefaults(): {
   model: string;
   baseUrl: string;
   apiKeyEnvVar: string;

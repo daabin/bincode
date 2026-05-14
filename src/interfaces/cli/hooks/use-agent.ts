@@ -10,11 +10,11 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Agent } from '../../core/agent.js';
-import type { AgentEvent, ToolGroup, CompletedTurn } from '../../types/agent.js';
-import type { LLMProvider } from '../../llm/types.js';
-import type { ServiceContainer } from '../../services/index.js';
-import type { AgentConfig } from '../../types/agent.js';
+import { Agent } from '../../../core/agent.js';
+import type { AgentEvent, ToolGroup, CompletedTurn } from '../../../types/agent.js';
+import type { LLMProvider } from '../../../llm/types.js';
+import type { ServiceContainer } from '../../../services/index.js';
+import type { AgentConfig } from '../../../types/agent.js';
 
 const STREAM_THROTTLE_MS = 50;
 

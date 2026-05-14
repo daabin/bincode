@@ -3,9 +3,9 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { loadConfig, saveConfig, getApiKey, getProvider, getBaseUrl, getModel } from '../../config/index.js';
-import type { Config } from '../../types/config.js';
-import type { ProviderType } from '../../llm/types.js';
+import { loadConfig, saveConfig, getApiKey, getProvider, getBaseUrl, getModel } from '../../../config/index.js';
+import type { Config } from '../../../types/config.js';
+import type { ProviderType } from '../../../llm/types.js';
 
 export interface ConfigState {
   config: Config;

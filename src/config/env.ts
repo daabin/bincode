@@ -1,69 +1,40 @@
 /**
- * Environment variable configuration
+ * Environment variable configuration (DeepSeek only)
  */
 
 import type { ProviderType } from '../llm/types.js';
 
-const ENV_VAR_MAP: Record<ProviderType, string> = {
-  deepseek: 'DEEPSEEK_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  anthropic: 'ANTHROPIC_API_KEY',
-  ollama: 'OLLAMA_API_KEY',
-  custom: 'BINCODE_API_KEY'
-};
-
-const BASE_URL_MAP: Record<ProviderType, string> = {
-  deepseek: 'https://api.deepseek.com',
-  openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com/v1',
-  ollama: 'http://localhost:11434',
-  custom: ''
-};
-
-const MODEL_MAP: Record<ProviderType, string> = {
-  deepseek: 'deepseek-chat',
-  openai: 'gpt-4o',
-  anthropic: 'claude-3-5-sonnet-20241022',
-  ollama: 'llama3.2',
-  custom: ''
-};
-
 /**
- * Get the environment variable name for a provider's API key
+ * Get the environment variable name for DeepSeek API key
  */
-export function getEnvVarName(provider: ProviderType): string {
-  return ENV_VAR_MAP[provider] || 'DEEPSEEK_API_KEY';
+export function getEnvVarName(_provider?: ProviderType): string {
+  return 'DEEPSEEK_API_KEY';
 }
 
 /**
  * Get API key from environment variables
  */
-export function getApiKeyFromEnv(provider: ProviderType): string | undefined {
-  const envVar = getEnvVarName(provider);
-  return process.env[envVar] || process.env.BINCODE_API_KEY;
+export function getApiKeyFromEnv(_provider?: ProviderType): string | undefined {
+  return process.env.DEEPSEEK_API_KEY || process.env.BINCODE_API_KEY;
 }
 
 /**
- * Get default base URL for a provider
+ * Get default base URL for DeepSeek
  */
-export function getDefaultBaseUrl(provider: ProviderType): string {
-  return BASE_URL_MAP[provider] || 'https://api.deepseek.com';
+export function getDefaultBaseUrl(_provider?: ProviderType): string {
+  return 'https://api.deepseek.com';
 }
 
 /**
- * Get default model for a provider
+ * Get default model for DeepSeek
  */
-export function getDefaultModel(provider: ProviderType): string {
-  return MODEL_MAP[provider] || 'deepseek-chat';
+export function getDefaultModel(_provider?: ProviderType): string {
+  return 'deepseek-chat';
 }
 
 /**
- * Get provider from environment variable
+ * Get provider from environment variable (always returns 'deepseek')
  */
-export function getProviderFromEnv(): ProviderType | undefined {
-  const provider = process.env.BINCODE_PROVIDER;
-  if (provider && ['deepseek', 'openai', 'anthropic', 'ollama'].includes(provider)) {
-    return provider as ProviderType;
-  }
-  return undefined;
+export function getProviderFromEnv(): ProviderType {
+  return 'deepseek';
 }

@@ -1,11 +1,5 @@
-<<<<<<< HEAD
-import { createProvider, type ProviderType } from './llm/index.js';
-import type { LLMProvider } from './llm/types.js';
-import { getProvider, getApiKey, getBaseUrl, getModel } from './config/index.js';
-=======
-import { DeepSeekProvider } from './llm/index.js';
-import { getApiKey, getBaseUrl, getModel } from './config.js';
->>>>>>> agents/refactor-project-deepseek-web-support
+import { DeepSeekProvider } from '../../llm/index.js';
+import { getApiKey, getBaseUrl, getModel } from '../../config/index.js';
 
 /**
  * 代码补全请求

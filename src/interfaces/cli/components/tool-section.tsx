@@ -13,7 +13,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import type { ToolGroup } from '../../types/agent.js';
+import type { ToolGroup } from '../../../types/agent.js';
 
 interface ToolSectionProps {
   group: ToolGroup;

@@ -14,9 +14,9 @@ import { Text, Box, useInput } from 'ink';
 import { ChatView } from './components/chat-view.js';
 import { StatusBar } from './components/status-bar.js';
 import { useAgent } from './hooks/use-agent.js';
-import { createProvider } from '../llm/index.js';
-import { createServiceContainer } from '../services/index.js';
-import { getApiKey, getBaseUrl, getModel } from '../config/index.js';
+import { DeepSeekProvider } from '../../llm/index.js';
+import { createServiceContainer } from '../../services/index.js';
+import { getApiKey, getBaseUrl, getModel } from '../../config/index.js';
 
 const PROVIDER = 'deepseek' as const;
 
@@ -55,8 +55,8 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
   const services = React.useMemo(() => createServiceContainer(cwd), [cwd]);
 
   const provider = React.useMemo(
-    () => createProvider(PROVIDER, { name: PROVIDER, apiKey }),
-    [apiKey]
+    () => new DeepSeekProvider(),
+    []
   );
 
   const agentConfig = React.useMemo(() => ({

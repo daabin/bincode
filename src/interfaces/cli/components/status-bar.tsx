@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import type { ProviderType } from '../../llm/types.js';
+import type { ProviderType } from '../../../llm/types.js';
 
 interface StatusBarProps {
   provider: ProviderType;

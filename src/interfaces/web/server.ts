@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { Agent } from './agent.js';
-import { getApiKey, getBaseUrl, getModel } from './config.js';
+import { Agent, createAgent } from '../../core/index.js';
+import { getApiKey, getModel, getBaseUrl } from '../../config/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Resolve the public directory relative to this file (works for both dev and dist)
-const PUBLIC_DIR = join(__dirname, '..', 'public');
+const PUBLIC_DIR = join(__dirname, '..', '..', '..', 'public');
 
 const app = express();
 app.use(express.json());
@@ -22,13 +22,7 @@ app.use(express.static(PUBLIC_DIR));
 const sessions = new Map<string, Agent>();
 
 function makeAgent(): Agent {
-  return new Agent({
-    cwd: process.cwd(),
-    apiKey: getApiKey() || '',
-    baseUrl: getBaseUrl(),
-    model: getModel(),
-    maxIterations: 30
-  });
+  return createAgent();
 }
 
 function generateId(): string {

@@ -51,6 +51,6 @@ export interface ProviderConfig {
 }
 
 /**
- * 支持的 Provider 类型
+ * 支持的 Provider 类型（仅 DeepSeek）
  */
 export type ProviderType = 'deepseek';
