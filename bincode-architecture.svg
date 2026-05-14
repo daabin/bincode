@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#059669"/>
+    </marker>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+    <linearGradient id="grad-blue" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad-purple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad-green" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .title { font-size: 24px; font-weight: 700; fill: #111827; }
+    .subtitle { font-size: 14px; fill: #6b7280; }
+    .layer-title { font-size: 16px; font-weight: 600; fill: #374151; }
+    .component-title { font-size: 14px; font-weight: 600; fill: #1f2937; }
+    .component-text { font-size: 12px; fill: #4b5563; }
+    .label-text { font-size: 11px; fill: #6b7280; }
+  </style>
+
+  <!-- Background -->
+  <rect width="1200" height="900" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="600" y="40" text-anchor="middle" class="title">Bincode 架构图 - Ports & Adapters 模式</text>
+  <text x="600" y="60" text-anchor="middle" class="subtitle">AI 驱动的 CLI 代码助手 (DeepSeek Powered)</text>
+
+  <!-- Layer 1: Interfaces (Adapters) -->
+  <rect x="60" y="100" width="1080" height="180" fill="#eff6ff" stroke="#3b82f6" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="80" y="125" class="layer-title">接口适配器层 (Interfaces)</text>
+
+  <!-- CLI Interface -->
+  <rect x="100" y="140" width="280" height="110" fill="url(#grad-blue)" rx="6" filter="url(#shadow)"/>
+  <text x="240" y="165" text-anchor="middle" class="component-title" fill="white">CLI 接口</text>
+  <text x="240" y="185" text-anchor="middle" class="component-text" fill="white">React Ink UI</text>
+  <text x="120" y="210" class="label-text" fill="white">• 交互式命令行</text>
+  <text x="120" y="228" class="label-text" fill="white">• 实时流式输出</text>
+  <text x="120" y="246" class="label-text" fill="white">• bincode 命令</text>
+
+  <!-- Web Interface -->
+  <rect x="460" y="140" width="280" height="110" fill="url(#grad-blue)" rx="6" filter="url(#shadow)"/>
+  <text x="600" y="165" text-anchor="middle" class="component-title" fill="white">Web 接口</text>
+  <text x="600" y="185" text-anchor="middle" class="component-text" fill="white">Express + SSE</text>
+  <text x="480" y="210" class="label-text" fill="white">• REST API</text>
+  <text x="480" y="228" class="label-text" fill="white">• HTML 前端</text>
+  <text x="480" y="246" class="label-text" fill="white">• bincode-web 命令</text>
+
+  <!-- VSCode Interface -->
+  <rect x="820" y="140" width="280" height="110" fill="#bfdbfe" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" rx="6" filter="url(#shadow)"/>
+  <text x="960" y="165" text-anchor="middle" class="component-title">VSCode 扩展</text>
+  <text x="960" y="185" text-anchor="middle" class="component-text">(准备中)</text>
+  <text x="840" y="210" class="label-text">• 代码补全</text>
+  <text x="840" y="228" class="label-text">• LSP 集成</text>
+  <text x="840" y="246" class="label-text">• 待实现</text>
+
+  <!-- Arrow from interfaces to core -->
+  <path d="M 240,250 L 240,320" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 600,250 L 600,320" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 960,250 L 960,320" stroke="#6b7280" stroke-width="2" fill="none" stroke-dasharray="5,5" marker-end="url(#arrow-gray)"/>
+
+  <!-- Layer 2: Core Engine (Ports) -->
+  <rect x="60" y="320" width="1080" height="220" fill="#f3e8ff" stroke="#8b5cf6" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="80" y="345" class="layer-title">核心引擎层 (Core)</text>
+
+  <!-- Agent Engine -->
+  <rect x="100" y="360" width="200" height="150" fill="url(#grad-purple)" rx="6" filter="url(#shadow)"/>
+  <text x="200" y="385" text-anchor="middle" class="component-title" fill="white">Agent 主循环</text>
+  <text x="120" y="410" class="label-text" fill="white">• 对话管理</text>
+  <text x="120" y="428" class="label-text" fill="white">• LLM 调用</text>
+  <text x="120" y="446" class="label-text" fill="white">• 工具协调</text>
+  <text x="120" y="464" class="label-text" fill="white">• 迭代执行</text>
+  <text x="120" y="482" class="label-text" fill="white">• 消息流水线</text>
+  <text x="120" y="500" class="label-text" fill="white">• Token 监控</text>
+
+  <!-- Tool Engine -->
+  <rect x="340" y="360" width="200" height="150" fill="url(#grad-purple)" rx="6" filter="url(#shadow)"/>
+  <text x="440" y="385" text-anchor="middle" class="component-title" fill="white">Tool Engine</text>
+  <text x="360" y="410" class="label-text" fill="white">• 工具注册</text>
+  <text x="360" y="428" class="label-text" fill="white">• 参数验证</text>
+  <text x="360" y="446" class="label-text" fill="white">• 安全执行</text>
+  <text x="360" y="464" class="label-text" fill="white">• 白名单控制</text>
+  <text x="360" y="482" class="label-text" fill="white">• 错误处理</text>
+  <text x="360" y="500" class="label-text" fill="white">• 20+ 工具</text>
+
+  <!-- Factory -->
+  <rect x="580" y="360" width="200" height="75" fill="url(#grad-purple)" rx="6" filter="url(#shadow)"/>
+  <text x="680" y="385" text-anchor="middle" class="component-title" fill="white">Agent Factory</text>
+  <text x="600" y="410" class="label-text" fill="white">• createAgent()</text>
+  <text x="600" y="428" class="label-text" fill="white">• 依赖注入</text>
+
+  <!-- Context Manager -->
+  <rect x="820" y="360" width="200" height="75" fill="url(#grad-purple)" rx="6" filter="url(#shadow)"/>
+  <text x="920" y="385" text-anchor="middle" class="component-title" fill="white">Context Manager</text>
+  <text x="840" y="410" class="label-text" fill="white">• 会话持久化</text>
+  <text x="840" y="428" class="label-text" fill="white">• Markdown 导出</text>
+
+  <!-- Session -->
+  <rect x="820" y="455" width="200" height="55" fill="url(#grad-purple)" rx="6" filter="url(#shadow)"/>
+  <text x="920" y="478" text-anchor="middle" class="component-title" fill="white">Session</text>
+  <text x="840" y="498" class="label-text" fill="white">• 历史记录</text>
+
+  <!-- Arrow from core to services -->
+  <path d="M 200,510 L 200,580" stroke="#8b5cf6" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 440,510 L 440,580" stroke="#8b5cf6" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Layer 3: Services & Tools -->
+  <rect x="60" y="580" width="520" height="180" fill="#d1fae5" stroke="#059669" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="80" y="605" class="layer-title">服务层 (Services)</text>
+
+  <!-- File Service -->
+  <rect x="100" y="620" width="140" height="110" fill="url(#grad-green)" rx="6" filter="url(#shadow)"/>
+  <text x="170" y="642" text-anchor="middle" class="component-title" fill="white">File Service</text>
+  <text x="115" y="665" class="label-text" fill="white">• read</text>
+  <text x="115" y="681" class="label-text" fill="white">• write</text>
+  <text x="115" y="697" class="label-text" fill="white">• edit</text>
+  <text x="115" y="713" class="label-text" fill="white">• delete</text>
+
+  <!-- Git Service -->
+  <rect x="270" y="620" width="140" height="110" fill="url(#grad-green)" rx="6" filter="url(#shadow)"/>
+  <text x="340" y="642" text-anchor="middle" class="component-title" fill="white">Git Service</text>
+  <text x="285" y="665" class="label-text" fill="white">• status</text>
+  <text x="285" y="681" class="label-text" fill="white">• diff</text>
+  <text x="285" y="697" class="label-text" fill="white">• log</text>
+  <text x="285" y="713" class="label-text" fill="white">• commit</text>
+
+  <!-- Search Service -->
+  <rect x="440" y="620" width="120" height="110" fill="url(#grad-green)" rx="6" filter="url(#shadow)"/>
+  <text x="500" y="642" text-anchor="middle" class="component-title" fill="white">Search</text>
+  <text x="455" y="665" class="label-text" fill="white">• grep</text>
+  <text x="455" y="681" class="label-text" fill="white">• glob</text>
+  <text x="455" y="697" class="label-text" fill="white">• 符号索引</text>
+  <text x="455" y="713" class="label-text" fill="white">• 语义搜索</text>
+
+  <!-- Layer 4: Tools Container -->
+  <rect x="620" y="580" width="520" height="180" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="640" y="605" class="layer-title">工具集 (20+ Tools)</text>
+
+  <!-- Code Tools -->
+  <rect x="650" y="620" width="140" height="55" fill="#fbbf24" rx="6" filter="url(#shadow)"/>
+  <text x="720" y="642" text-anchor="middle" class="component-title">Code Tools</text>
+  <text x="665" y="660" class="label-text">补全 / 索引</text>
+
+  <!-- System Tools -->
+  <rect x="810" y="620" width="140" height="55" fill="#fbbf24" rx="6" filter="url(#shadow)"/>
+  <text x="880" y="642" text-anchor="middle" class="component-title">System Tools</text>
+  <text x="825" y="660" class="label-text">命令执行</text>
+
+  <!-- Web Tools -->
+  <rect x="970" y="620" width="140" height="55" fill="#fbbf24" rx="6" filter="url(#shadow)"/>
+  <text x="1040" y="642" text-anchor="middle" class="component-title">Web Tools</text>
+  <text x="985" y="660" class="label-text">搜索 / 爬取</text>
+
+  <!-- Plugin Tools -->
+  <rect x="650" y="695" width="140" height="55" fill="#fed7aa" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,3" rx="6" filter="url(#shadow)"/>
+  <text x="720" y="717" text-anchor="middle" class="component-title">Plugin Tools</text>
+  <text x="665" y="735" class="label-text">自定义扩展</text>
+
+  <!-- MCP Tools -->
+  <rect x="810" y="695" width="140" height="55" fill="#fed7aa" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,3" rx="6" filter="url(#shadow)"/>
+  <text x="880" y="717" text-anchor="middle" class="component-title">MCP Tools</text>
+  <text x="825" y="735" class="label-text">MCP 协议</text>
+
+  <!-- Image Tools -->
+  <rect x="970" y="695" width="140" height="55" fill="#fbbf24" rx="6" filter="url(#shadow)"/>
+  <text x="1040" y="717" text-anchor="middle" class="component-title">Image Tools</text>
+  <text x="985" y="735" class="label-text">图片分析</text>
+
+  <!-- Layer 5: LLM Provider -->
+  <rect x="60" y="800" width="340" height="70" fill="#dbeafe" stroke="#2563eb" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="230" y="825" text-anchor="middle" class="layer-title">LLM Provider</text>
+  <rect x="100" y="840" width="260" height="20" fill="url(#grad-blue)" rx="4"/>
+  <text x="230" y="855" text-anchor="middle" class="component-text" fill="white">DeepSeek API (deepseek-chat)</text>
+
+  <!-- Arrow from Agent to LLM -->
+  <path d="M 200,540 Q 200,670 230,800" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <rect x="160" y="660" width="60" height="18" fill="white" opacity="0.95" rx="3"/>
+  <text x="190" y="672" text-anchor="middle" class="label-text">调用</text>
+
+  <!-- Layer 6: Config -->
+  <rect x="440" y="800" width="340" height="70" fill="#fef2f2" stroke="#ef4444" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="610" y="825" text-anchor="middle" class="layer-title">配置管理 (Config)</text>
+  <rect x="480" y="840" width="260" height="20" fill="#ef4444" rx="4"/>
+  <text x="610" y="855" text-anchor="middle" class="component-text" fill="white">~/.bincode/config.json + Watcher</text>
+
+  <!-- Layer 7: Utils -->
+  <rect x="820" y="800" width="320" height="70" fill="#f5f5f5" stroke="#9ca3af" stroke-width="2" rx="8" filter="url(#shadow)"/>
+  <text x="980" y="825" text-anchor="middle" class="layer-title">工具集 (Utils)</text>
+  <text x="850" y="850" class="label-text">Token 计数 • 重试机制 • Markdown 渲染</text>
+  <text x="850" y="865" class="label-text">Indexer • Session • Plugin 系统</text>
+
+  <!-- Legend -->
+  <rect x="60" y="20" width="280" height="60" fill="white" stroke="#d1d5db" stroke-width="1" rx="4"/>
+  <text x="75" y="38" class="component-text" font-weight="600">图例：</text>
+  <line x1="75" y1="50" x2="105" y2="50" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="115" y="55" class="label-text">依赖调用</text>
+  <line x1="200" y1="50" x2="230" y2="50" stroke="#6b7280" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrow-gray)"/>
+  <text x="240" y="55" class="label-text">未实现</text>
+
+</svg>

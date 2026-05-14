@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Markdown Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #0d1117;
+      color: #e6edf3;
+    }
+    .test {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+    }
+    button {
+      background: #58a6ff;
+      border: none;
+      padding: 10px 20px;
+      color: #0d1117;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: monospace;
+    }
+    button:hover {
+      opacity: 0.85;
+    }
+  </style>
+</head>
+<body>
+  <h1>Markdown Rendering Test</h1>
+  <p>Server: <a href="http://localhost:3003" target="_blank">http://localhost:3003</a></p>
+
+  <div class="test">
+    <h3>Test 1: Request with Markdown</h3>
+    <button onclick="testMarkdown()">Send Test Message</button>
+    <pre id="result" style="margin-top:10px;color:#8b949e;"></pre>
+  </div>
+
+  <div class="test">
+    <h3>Instructions</h3>
+    <ol>
+      <li>Click the button above to send a test message</li>
+      <li>Open <a href="http://localhost:3003" target="_blank">http://localhost:3003</a> in another tab</li>
+      <li>You should see the message with proper Markdown rendering</li>
+    </ol>
+  </div>
+
+  <script>
+    async function testMarkdown() {
+      const resultEl = document.getElementById('result');
+      resultEl.textContent = 'Sending test message...';
+
+      try {
+        const response = await fetch('http://localhost:3003/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'Please explain what you can do, using markdown formatting with code examples, lists, and headers.'
+          })
+        });
+
+        if (response.ok) {
+          resultEl.textContent = '✓ Message sent! Check http://localhost:3003 to see the rendered markdown.';
+        } else {
+          resultEl.textContent = '✗ Error: ' + response.status;
+        }
+      } catch (err) {
+        resultEl.textContent = '✗ Error: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>

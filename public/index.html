@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>bincode — AI Code Agent</title>
+  <!-- Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <!-- Code highlighting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -98,14 +103,97 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 10px 14px;
-      white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.6;
     }
-    .msg.user  .msg-body { background: var(--user-bg); border-color: var(--accent); }
+    .msg.user  .msg-body { background: var(--user-bg); border-color: var(--accent); white-space: pre-wrap; }
     .msg.agent .msg-body { background: var(--agent-bg); border-color: #2d4a2d; }
-    .msg.tool  .msg-body { background: var(--tool-bg); font-size: 12px; color: var(--muted); }
-    .msg.error .msg-body { background: #1a0d0d; border-color: var(--red); color: var(--red); }
+    .msg.tool  .msg-body { background: var(--tool-bg); font-size: 12px; color: var(--muted); white-space: pre-wrap; }
+    .msg.error .msg-body { background: #1a0d0d; border-color: var(--red); color: var(--red); white-space: pre-wrap; }
+
+    /* Markdown styling for agent messages */
+    .msg.agent .msg-body p { margin: 0.5em 0; }
+    .msg.agent .msg-body p:first-child { margin-top: 0; }
+    .msg.agent .msg-body p:last-child { margin-bottom: 0; }
+    .msg.agent .msg-body h1,
+    .msg.agent .msg-body h2,
+    .msg.agent .msg-body h3 {
+      margin: 1em 0 0.5em 0;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .msg.agent .msg-body h1 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+    .msg.agent .msg-body h2 { font-size: 1.3em; }
+    .msg.agent .msg-body h3 { font-size: 1.1em; }
+    .msg.agent .msg-body code {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.15em 0.4em;
+      font-size: 0.9em;
+      color: var(--accent);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .msg.agent .msg-body pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 0.8em 0;
+      line-height: 1.5;
+    }
+    .msg.agent .msg-body pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--text);
+      font-size: 0.95em;
+    }
+    .msg.agent .msg-body ul,
+    .msg.agent .msg-body ol {
+      margin: 0.5em 0 0.5em 1.5em;
+      padding-left: 0.5em;
+    }
+    .msg.agent .msg-body li { margin: 0.3em 0; }
+    .msg.agent .msg-body blockquote {
+      border-left: 3px solid var(--border);
+      padding-left: 1em;
+      margin: 0.8em 0;
+      color: var(--muted);
+    }
+    .msg.agent .msg-body a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .msg.agent .msg-body a:hover {
+      text-decoration: underline;
+    }
+    .msg.agent .msg-body table {
+      border-collapse: collapse;
+      margin: 0.8em 0;
+      width: 100%;
+    }
+    .msg.agent .msg-body th,
+    .msg.agent .msg-body td {
+      border: 1px solid var(--border);
+      padding: 0.5em;
+      text-align: left;
+    }
+    .msg.agent .msg-body th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .msg.agent .msg-body hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1em 0;
+    }
+
+    /* Highlight.js overrides */
+    .msg.agent .msg-body pre code.hljs {
+      background: transparent;
+    }
 
     /* Tool call toggle */
     .tool-toggle {
@@ -132,6 +220,15 @@
     .cursor::after {
       content: '▋';
       animation: blink 0.8s step-start infinite;
+    }
+    .cursor-inline {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: var(--text);
+      margin-left: 2px;
+      animation: blink 0.8s step-start infinite;
+      vertical-align: text-bottom;
     }
     @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
 
@@ -236,6 +333,14 @@
 </div>
 
 <script>
+  // Configure marked for better rendering
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    headerIds: false,
+    mangle: false
+  });
+
   const chatEl   = document.getElementById('chat');
   const welcome  = document.getElementById('welcome');
   const inputEl  = document.getElementById('input');
@@ -283,6 +388,35 @@
   function appendSystem(text) {
     const body = createMsg('system');
     body.textContent = text;
+  }
+
+  // ── Markdown rendering with streaming support ────────────────────────────
+
+  function renderMarkdown(text, streaming = false) {
+    try {
+      // If streaming and text ends mid-code-block, add placeholder
+      let workingText = text;
+      if (streaming) {
+        // Count code fence markers
+        const fenceCount = (text.match(/```/g) || []).length;
+        // If odd number, we're inside a code block
+        if (fenceCount % 2 === 1) {
+          workingText = text + '\n```';
+        }
+      }
+
+      const html = marked.parse(workingText);
+      return html;
+    } catch (err) {
+      console.error('Markdown parse error:', err);
+      return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  }
+
+  function highlightCode(element) {
+    element.querySelectorAll('pre code').forEach((block) => {
+      hljs.highlightElement(block);
+    });
   }
 
   // ── Input auto-resize ────────────────────────────────────────────────────
@@ -362,8 +496,13 @@
       const body = createMsg('error');
       body.textContent = err.message || 'Network error';
     } finally {
-      // Remove streaming cursor
-      if (agentBody) agentBody.classList.remove('cursor');
+      // Remove streaming cursor and finalize rendering
+      if (agentBody) {
+        agentBody.classList.remove('cursor');
+        // Final render without streaming flag
+        agentBody.innerHTML = renderMarkdown(agentText, false);
+        highlightCode(agentBody);
+      }
       setBusy(false);
       scrollBottom();
     }
@@ -377,7 +516,12 @@
       }
 
       if (event.type === 'done') {
-        if (agentBody) agentBody.classList.remove('cursor');
+        if (agentBody) {
+          agentBody.classList.remove('cursor');
+          // Final render
+          agentBody.innerHTML = renderMarkdown(agentText, false);
+          highlightCode(agentBody);
+        }
         return;
       }
 
@@ -387,7 +531,17 @@
           agentBody.classList.add('cursor');
         }
         agentText += event.content;
-        agentBody.textContent = agentText;
+
+        // Render markdown while streaming
+        agentBody.innerHTML = renderMarkdown(agentText, true);
+        highlightCode(agentBody);
+
+        // Re-add cursor after content
+        const cursor = document.createElement('span');
+        cursor.className = 'cursor-inline';
+        cursor.textContent = '';
+        agentBody.appendChild(cursor);
+
         scrollBottom();
         return;
       }
@@ -396,6 +550,8 @@
         // Commit any streaming agent text first
         if (agentBody) {
           agentBody.classList.remove('cursor');
+          agentBody.innerHTML = renderMarkdown(agentText, false);
+          highlightCode(agentBody);
           agentBody = null;
           agentText = '';
         }
@@ -428,7 +584,13 @@
       }
 
       if (event.type === 'error') {
-        if (agentBody) { agentBody.classList.remove('cursor'); agentBody = null; agentText = ''; }
+        if (agentBody) {
+          agentBody.classList.remove('cursor');
+          agentBody.innerHTML = renderMarkdown(agentText, false);
+          highlightCode(agentBody);
+          agentBody = null;
+          agentText = '';
+        }
         const body = createMsg('error');
         body.textContent = event.message;
         scrollBottom();
