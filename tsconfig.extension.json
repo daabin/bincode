@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist-extension",
+    "rootDir": "./src",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "types": ["node", "vscode"],
+    "lib": ["ES2021"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/interfaces/vscode/**/*",
+    "src/core/**/*",
+    "src/llm/**/*",
+    "src/config/**/*",
+    "src/services/**/*",
+    "src/tools/**/*",
+    "src/types/**/*",
+    "src/retry.ts",
+    "src/tokens.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/cli/**/*",
+    "src/interfaces/cli/**/*",
+    "src/interfaces/web/**/*",
+    "src/web.ts",
+    "src/cli.tsx"
+  ]
+}

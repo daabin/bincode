@@ -50,7 +50,8 @@
       "Bash(node test-api.js)",
       "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"say hello\"}' -N)",
       "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"hello\"}' -N -m 10)",
-      "Bash(node test-sse-client.js)"
+      "Bash(node test-sse-client.js)",
+      "Bash(chmod +x /Users/daabin/codinglab/bincode/test-vscode-extension.sh)"
     ],
     "additionalDirectories": [
       "/Users/daabin/codinglab/bincode/src",

@@ -1,0 +1,167 @@
+{
+  "name": "bincode-vscode",
+  "displayName": "bincode - AI Code Agent",
+  "description": "AI-powered code assistance with DeepSeek",
+  "version": "0.3.0",
+  "publisher": "daabin",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "keywords": [
+    "ai",
+    "deepseek",
+    "code-completion",
+    "assistant",
+    "copilot"
+  ],
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daabin/bincode"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist-extension/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "bincode.explain",
+        "title": "bincode: Explain Selected Code"
+      },
+      {
+        "command": "bincode.refactor",
+        "title": "bincode: Refactor Selected Code"
+      },
+      {
+        "command": "bincode.fix",
+        "title": "bincode: Fix Issues"
+      },
+      {
+        "command": "bincode.generate",
+        "title": "bincode: Generate Code from Comment"
+      },
+      {
+        "command": "bincode.chat",
+        "title": "bincode: Open Chat"
+      },
+      {
+        "command": "bincode.toggleInlineCompletion",
+        "title": "bincode: Toggle Inline Completion"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "bincode.explain",
+          "when": "editorHasSelection",
+          "group": "bincode@1"
+        },
+        {
+          "command": "bincode.refactor",
+          "when": "editorHasSelection",
+          "group": "bincode@2"
+        },
+        {
+          "command": "bincode.fix",
+          "when": "editorHasSelection",
+          "group": "bincode@3"
+        },
+        {
+          "command": "bincode.generate",
+          "when": "editorTextFocus",
+          "group": "bincode@4"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "bincode",
+      "properties": {
+        "bincode.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "DeepSeek API Key (or set DEEPSEEK_API_KEY environment variable)",
+          "order": 1
+        },
+        "bincode.baseUrl": {
+          "type": "string",
+          "default": "https://api.deepseek.com",
+          "description": "DeepSeek API Base URL",
+          "order": 2
+        },
+        "bincode.model": {
+          "type": "string",
+          "default": "deepseek-chat",
+          "description": "DeepSeek model to use",
+          "order": 3
+        },
+        "bincode.enableInlineCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inline code completion (like GitHub Copilot)",
+          "order": 4
+        },
+        "bincode.completionDelay": {
+          "type": "number",
+          "default": 300,
+          "description": "Delay in milliseconds before showing completion (to reduce API calls)",
+          "minimum": 100,
+          "maximum": 2000,
+          "order": 5
+        },
+        "bincode.maxCompletionTokens": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum tokens for code completion",
+          "minimum": 20,
+          "maximum": 500,
+          "order": 6
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "bincode-sidebar",
+          "title": "bincode",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "bincode-sidebar": [
+        {
+          "id": "bincode.chatView",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:extension",
+    "build:extension": "node scripts/build-extension.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "cli-highlight": "^2.1.11",
+    "express": "^5.2.1",
+    "highlight.js": "^11.11.1",
+    "ink": "^5.1.0",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
+    "react": "^18.3.1",
+    "strip-ansi": "^7.2.0"
+  }
+}
