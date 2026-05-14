@@ -1,17 +1,40 @@
 /**
- * Main CLI application component
+ * Main CLI application — DeepSeek only
+ *
+ * UX improvements over the previous version:
+ *   • /clear, /help slash commands
+ *   • Ctrl+C: first press aborts current run; second press within 1s exits
+ *   • Escape: abort current run
+ *   • ↑/↓ input history navigation
+ *   • Spinner glyph while running
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Text, Box, useInput } from 'ink';
 import { ChatView } from './components/chat-view.js';
 import { StatusBar } from './components/status-bar.js';
 import { useAgent } from './hooks/use-agent.js';
-import { useConfig } from './hooks/use-config.js';
-import { createProvider, detectAvailableProviders } from '../llm/index.js';
+import { createProvider } from '../llm/index.js';
 import { createServiceContainer } from '../services/index.js';
-import { loadConfig } from '../config/index.js';
-import type { ProviderType } from '../llm/types.js';
+import { getApiKey, getBaseUrl, getModel } from '../config/index.js';
+
+const PROVIDER = 'deepseek' as const;
+
+const HELP_TEXT = [
+  '',
+  'bincode — AI code agent (powered by DeepSeek)',
+  '',
+  'Commands:',
+  '  /clear   Clear conversation history',
+  '  /help    Show this help',
+  '',
+  'Shortcuts:',
+  '  Enter    Submit message',
+  '  Ctrl+C   Abort current run (press twice within 1s to exit)',
+  '  Escape   Abort current run',
+  '  ↑ / ↓   Navigate input history',
+  '',
+].join('\n');
 
 interface AppProps {
   initialInput?: string;
@@ -19,56 +42,90 @@ interface AppProps {
 }
 
 export function App({ initialInput, cwd = process.cwd() }: AppProps) {
-  const configState = useConfig();
+  const apiKey = getApiKey() || '';
+  const baseUrl = getBaseUrl();
+  const model = getModel();
+
   const [input, setInput] = useState(initialInput || '');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const ctrlCCountRef = useRef(0);
+  const ctrlCTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Create services
-  const services = React.useMemo(
-    () => createServiceContainer(cwd),
-    [cwd]
-  );
+  const services = React.useMemo(() => createServiceContainer(cwd), [cwd]);
 
-  // Create provider
   const provider = React.useMemo(
-    () => createProvider(configState.provider, {
-      name: configState.provider,
-      apiKey: configState.apiKey
-    }),
-    [configState.provider, configState.apiKey]
+    () => createProvider(PROVIDER, { name: PROVIDER, apiKey }),
+    [apiKey]
   );
 
-  // Agent hook
-  const agent = useAgent(provider, services, {
+  const agentConfig = React.useMemo(() => ({
     cwd,
-    apiKey: configState.apiKey,
-    baseUrl: configState.baseUrl,
-    model: configState.model,
+    apiKey,
+    baseUrl,
+    model,
     maxIterations: 100,
-    provider: configState.provider
-  });
+    provider: PROVIDER
+  }), [cwd, apiKey, baseUrl, model]);
 
-  // Handle input
+  const agent = useAgent(provider, services, agentConfig);
+
   const handleSubmit = useCallback((text: string) => {
-    if (!text.trim() || agent.state.isRunning) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
-    setHistory(prev => [...prev, text]);
+    if (trimmed === '/clear') {
+      agent.reset();
+      setInput('');
+      setHistory([]);
+      setHistoryIndex(-1);
+      return;
+    }
+
+    if (trimmed === '/help') {
+      process.stdout.write(HELP_TEXT);
+      setInput('');
+      return;
+    }
+
+    if (agent.state.isRunning) return;
+
+    setHistory(prev => [...prev, trimmed]);
     setHistoryIndex(-1);
     setInput('');
-    agent.start(text);
+    agent.start(trimmed);
   }, [agent]);
 
-  // Keyboard input
   useInput((inputChar, key) => {
-    if (key.return && input.trim()) {
-      handleSubmit(input);
+    if (key.return) {
+      if (input.trim()) handleSubmit(input);
+      return;
+    }
+
+    if (key.ctrl && inputChar === 'c') {
+      ctrlCCountRef.current += 1;
+      if (ctrlCCountRef.current === 1) {
+        agent.abort();
+        if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
+        ctrlCTimerRef.current = setTimeout(() => {
+          ctrlCCountRef.current = 0;
+        }, 1000);
+      } else {
+        process.exit(0);
+      }
+      return;
+    }
+
+    if (key.escape) {
+      agent.abort();
       return;
     }
 
     if (key.upArrow) {
       if (history.length > 0) {
-        const newIndex = historyIndex === -1 ? history.length - 1 : Math.max(0, historyIndex - 1);
+        const newIndex = historyIndex === -1
+          ? history.length - 1
+          : Math.max(0, historyIndex - 1);
         setHistoryIndex(newIndex);
         setInput(history[newIndex]);
       }
@@ -89,11 +146,6 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
       return;
     }
 
-    if (key.escape) {
-      agent.abort();
-      return;
-    }
-
     if (key.backspace || key.delete) {
       setInput(prev => prev.slice(0, -1));
       return;
@@ -104,38 +156,38 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
     }
   });
 
-  // Auto-submit initial input
   useEffect(() => {
-    if (initialInput) {
-      handleSubmit(initialInput);
-    }
+    if (initialInput) handleSubmit(initialInput);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <Box flexDirection="column" height="100%">
-      {/* Chat area */}
-      <Box flexGrow={1} flexDirection="column" marginBottom={1}>
-        <ChatView
-          events={agent.state.events}
-          currentContent={agent.state.currentContent}
-          error={agent.state.error}
-          isRunning={agent.state.isRunning}
-        />
-      </Box>
+  const spinner = agent.state.isRunning ? '⠋' : '';
 
-      {/* Input area */}
+  return (
+    <Box flexDirection="column">
+      {/* Bounded active-turn area — completed turns are on scrollback above */}
+      <ChatView
+        completedTurns={agent.state.completedTurns}
+        toolGroups={agent.state.toolGroups}
+        currentContent={agent.state.currentContent}
+        error={agent.state.error}
+        isRunning={agent.state.isRunning}
+        onToggleTool={agent.toggleToolGroup}
+      />
+
+      {/* Input line */}
       <Box>
-        <Text color="green">❯ </Text>
+        <Text color="green" bold>{spinner || '❯'} </Text>
         <Text>{input}</Text>
         {!agent.state.isRunning && <Text color="green">▊</Text>}
       </Box>
 
       {/* Status bar */}
       <StatusBar
-        provider={configState.provider}
-        model={configState.model}
+        provider={PROVIDER}
+        model={model}
         isRunning={agent.state.isRunning}
-        messageCount={agent.state.events.length}
+        messageCount={agent.state.completedTurns.length}
       />
     </Box>
   );

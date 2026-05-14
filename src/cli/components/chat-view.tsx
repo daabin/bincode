@@ -1,105 +1,88 @@
 /**
- * Chat view component for displaying agent conversation
+ * Chat view — renders the active (bounded) conversation area.
+ *
+ * Completed turns are written permanently to terminal scrollback via
+ * useStdout().write(), so Ink never re-renders them → zero flashing for history.
+ *
+ * The Ink-managed area only contains:
+ *   • Active tool groups (collapsible, 1 line each when collapsed)
+ *   • Live streaming content: last MAX_STREAMING_LINES lines  ← bounded
+ *   • Error display
  */
 
-import React from 'react';
-import { Text, Box } from 'ink';
-import type { AgentEvent } from '../../types/agent.js';
+import React, { useRef, useEffect } from 'react';
+import { Text, Box, useStdout } from 'ink';
+import type { ToolGroup, CompletedTurn } from '../../types/agent.js';
 import { Markdown } from '../../markdown.js';
+import { ToolSection } from './tool-section.js';
+import { renderMarkdownToTerminal } from '../../utils/terminalMarkdownRenderer.js';
+import chalk from 'chalk';
+
+/** Max lines of streaming content shown inside Ink's managed area */
+const MAX_STREAMING_LINES = 20;
+const RENDER_OPTS = { enableHighlight: true, enableColor: true, escapeHtml: false };
 
 interface ChatViewProps {
-  events: AgentEvent[];
+  completedTurns: CompletedTurn[];
+  toolGroups: ToolGroup[];
   currentContent: string;
   error: string | null;
   isRunning: boolean;
+  onToggleTool: (idx: number) => void;
 }
 
-export function ChatView({ events, currentContent, error, isRunning }: ChatViewProps) {
-  // Show only the last few events for a compact view
-  const visibleEvents = events.slice(-20);
+export function ChatView({
+  completedTurns,
+  toolGroups,
+  currentContent,
+  error,
+  isRunning,
+  onToggleTool
+}: ChatViewProps) {
+  const { stdout } = useStdout();
+  const printedRef = useRef(0);
+
+  // Permanently write new completed turns to terminal scrollback.
+  // Runs after each render — content is above Ink's managed region and never re-rendered.
+  useEffect(() => {
+    const newTurns = completedTurns.slice(printedRef.current);
+    for (const turn of newTurns) {
+      if (turn.role === 'user') {
+        stdout.write(chalk.bold.green('\n❯ ') + chalk.bold(turn.content) + '\n\n');
+      } else if (turn.content.trim()) {
+        const rendered = renderMarkdownToTerminal(turn.content, RENDER_OPTS);
+        stdout.write(rendered.trimEnd() + '\n\n');
+      }
+    }
+    printedRef.current = completedTurns.length;
+  }, [completedTurns, stdout]);
+
+  // Bound the streaming area to prevent Ink from managing too many lines
+  const streamingPreview = currentContent
+    ? currentContent.split('\n').slice(-MAX_STREAMING_LINES).join('\n')
+    : '';
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      {visibleEvents.map((event, i) => (
-        <EventRow key={i} event={event} />
+    <Box flexDirection="column">
+      {/* Active tool groups */}
+      {toolGroups.map((group, i) => (
+        <ToolSection key={i} group={group} index={i} onToggle={onToggleTool} />
       ))}
 
-      {isRunning && currentContent && (
-        <Box>
-          <Text color="cyan">┃ </Text>
-          <Text>{currentContent}</Text>
+      {/* Live streaming preview */}
+      {isRunning && streamingPreview && (
+        <Box flexDirection="column">
+          <Markdown streaming>{streamingPreview}</Markdown>
           <Text color="green">▊</Text>
         </Box>
       )}
 
+      {/* Error display */}
       {error && (
-        <Box>
+        <Box marginTop={1}>
           <Text color="red">✖ Error: {error}</Text>
         </Box>
       )}
     </Box>
   );
-}
-
-function EventRow({ event }: { event: AgentEvent }) {
-  switch (event.type) {
-    case 'assistant':
-      return (
-        <Box flexDirection="column">
-          <Markdown>{event.content}</Markdown>
-        </Box>
-      );
-
-    case 'tool_call':
-      return (
-        <Box>
-          <Text color="yellow">⚡ </Text>
-          <Text color="yellow">{event.name}</Text>
-          <Text color="gray">({JSON.stringify(event.args).substring(0, 80)})</Text>
-        </Box>
-      );
-
-    case 'tool_result': {
-      const preview = event.result.substring(0, 200);
-      return (
-        <Box flexDirection="column">
-          <Box>
-            <Text color="green">✔ </Text>
-            <Text color="green">{event.name}</Text>
-            <Text color="gray"> completed</Text>
-          </Box>
-          {preview && (
-            <Box marginLeft={2}>
-              <Text color="gray">{preview}</Text>
-              {event.result.length > 200 && <Text color="gray">...</Text>}
-            </Box>
-          )}
-        </Box>
-      );
-    }
-
-    case 'reasoning':
-      return (
-        <Box>
-          <Text color="gray">💭 {event.content}</Text>
-        </Box>
-      );
-
-    case 'error':
-      return (
-        <Box>
-          <Text color="red">✖ {event.message}</Text>
-        </Box>
-      );
-
-    case 'done':
-      return (
-        <Box>
-          <Text color="green">✔ Done</Text>
-        </Box>
-      );
-
-    default:
-      return null;
-  }
 }

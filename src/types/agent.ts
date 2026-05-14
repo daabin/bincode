@@ -19,3 +19,16 @@ export type AgentConfig = {
   provider?: string;
   systemPrompt?: string;
 };
+
+/** A tool call paired with its result, displayed as a collapsible row */
+export interface ToolGroup {
+  call: { name: string; args: unknown; category?: ToolCategory };
+  result?: string;
+  expanded: boolean;
+}
+
+/** A completed conversation turn, printed permanently to terminal scrollback */
+export interface CompletedTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}

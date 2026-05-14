@@ -1,10 +1,17 @@
 /**
  * React hook for managing agent lifecycle in CLI
+ *
+ * Key design choices:
+ * - Streaming tokens accumulate in a ref (pendingContentRef), flushed to state
+ *   at most once per STREAM_THROTTLE_MS → caps Ink redraws to ~20/sec
+ * - Tool calls are grouped with their results in ToolGroup[]
+ * - Completed turns go into completedTurns[] where ChatView prints them
+ *   permanently to terminal scrollback (zero flashing for history)
  */
 
 import { useState, useCallback, useRef } from 'react';
 import { Agent } from '../../core/agent.js';
-import type { AgentEvent } from '../../types/agent.js';
+import type { AgentEvent, ToolGroup, CompletedTurn } from '../../types/agent.js';
 import type { LLMProvider } from '../../llm/types.js';
 import type { ServiceContainer } from '../../services/index.js';
 import type { AgentConfig } from '../../types/agent.js';
@@ -13,8 +20,9 @@ const STREAM_THROTTLE_MS = 50;
 
 export interface AgentState {
   isRunning: boolean;
-  events: AgentEvent[];
+  toolGroups: ToolGroup[];
   currentContent: string;
+  completedTurns: CompletedTurn[];
   error: string | null;
 }
 
@@ -25,8 +33,9 @@ export function useAgent(
 ) {
   const [state, setState] = useState<AgentState>({
     isRunning: false,
-    events: [],
+    toolGroups: [],
     currentContent: '',
+    completedTurns: [],
     error: null
   });
 
@@ -45,14 +54,12 @@ export function useAgent(
     setState(prev => ({
       ...prev,
       isRunning: true,
-      events: [],
+      toolGroups: [],
       currentContent: '',
-      error: null
+      error: null,
+      completedTurns: [...prev.completedTurns, { role: 'user', content: input }]
     }));
 
-    // Throttled flush of accumulated streaming content to React state.
-    // Tokens are buffered in a ref and pushed at most once per STREAM_THROTTLE_MS,
-    // keeping Ink redraws under control during fast LLM streaming.
     const scheduleContentUpdate = () => {
       if (streamTimerRef.current === null) {
         streamTimerRef.current = setTimeout(() => {
@@ -69,62 +76,122 @@ export function useAgent(
       }
     };
 
-    // Track accumulated content for the current LLM turn.
-    // Must be reset to '' whenever we finalize it into state.events.
     let accumulatedContent = '';
+    let currentToolGroups: ToolGroup[] = [];
 
-    // Flush buffered streaming content into state.events as a single assistant event,
-    // then reset tracking state. Returns the event added (or null if nothing to flush).
-    const finalizeAssistantContent = (): AgentEvent | null => {
-      if (!accumulatedContent) return null;
-      const event: AgentEvent = { type: 'assistant', content: accumulatedContent };
+    const drainContent = (): string => {
+      const c = accumulatedContent;
       accumulatedContent = '';
       pendingContentRef.current = '';
-      return event;
+      return c;
     };
 
     try {
       for await (const event of agent.run(input)) {
         if (abortRef.current?.signal.aborted) break;
 
-        if (event.type === 'assistant') {
-          // Accumulate in local var + ref; only flush to state throttled
-          accumulatedContent += event.content;
-          pendingContentRef.current = accumulatedContent;
-          scheduleContentUpdate();
-        } else {
-          // Non-streaming event: finalize any buffered assistant content first,
-          // then add this event — all in one setState to avoid stale closures.
-          flushAndClearTimer();
-          const assistantEvent = finalizeAssistantContent();
-          setState(prev => {
-            const newEvents = assistantEvent
-              ? [...prev.events, assistantEvent, event]
-              : [...prev.events, event];
-            return {
+        switch (event.type) {
+          case 'assistant':
+            accumulatedContent += event.content;
+            pendingContentRef.current = accumulatedContent;
+            scheduleContentUpdate();
+            break;
+
+          case 'reasoning':
+            // Show reasoning as dimmed quoted block during streaming
+            accumulatedContent += `\n> *${event.content}*\n`;
+            pendingContentRef.current = accumulatedContent;
+            scheduleContentUpdate();
+            break;
+
+          case 'tool_call': {
+            flushAndClearTimer();
+            const content = drainContent();
+            const newGroup: ToolGroup = {
+              call: { name: event.name, args: event.args, category: event.category },
+              expanded: false
+            };
+            currentToolGroups = [...currentToolGroups, newGroup];
+            setState(prev => ({
               ...prev,
               currentContent: '',
-              events: newEvents
-              // error events are rendered by EventRow — no need to also set state.error
-            };
-          });
+              toolGroups: currentToolGroups,
+              completedTurns: content
+                ? [...prev.completedTurns, { role: 'assistant', content }]
+                : prev.completedTurns
+            }));
+            break;
+          }
+
+          case 'tool_result': {
+            const lastIdx = currentToolGroups.length - 1;
+            if (lastIdx >= 0) {
+              currentToolGroups = currentToolGroups.map((g, i) =>
+                i === lastIdx ? { ...g, result: event.result } : g
+              );
+              setState(prev => ({ ...prev, toolGroups: currentToolGroups }));
+            }
+            break;
+          }
+
+          case 'done': {
+            flushAndClearTimer();
+            const content = drainContent();
+            currentToolGroups = [];
+            setState(prev => ({
+              ...prev,
+              isRunning: false,
+              currentContent: '',
+              toolGroups: [],
+              completedTurns: content
+                ? [...prev.completedTurns, { role: 'assistant', content }]
+                : prev.completedTurns
+            }));
+            break;
+          }
+
+          case 'error': {
+            flushAndClearTimer();
+            const content = drainContent();
+            setState(prev => ({
+              ...prev,
+              error: event.message,
+              completedTurns: content
+                ? [...prev.completedTurns, { role: 'assistant', content }]
+                : prev.completedTurns
+            }));
+            break;
+          }
         }
       }
     } catch (error) {
       flushAndClearTimer();
-      const assistantEvent = finalizeAssistantContent();
+      const content = drainContent();
       const errorMsg = error instanceof Error ? error.message : String(error);
-      setState(prev => {
-        const events = assistantEvent ? [...prev.events, assistantEvent] : prev.events;
-        return { ...prev, events, error: errorMsg };
-      });
+      setState(prev => ({
+        ...prev,
+        isRunning: false,
+        currentContent: '',
+        error: errorMsg,
+        completedTurns: content
+          ? [...prev.completedTurns, { role: 'assistant', content }]
+          : prev.completedTurns
+      }));
     } finally {
       flushAndClearTimer();
-      // Flush any remaining assistant content that wasn't followed by a non-assistant event
-      const assistantEvent = finalizeAssistantContent();
+      // Safety net: ensure we always exit running state
       setState(prev => {
-        const events = assistantEvent ? [...prev.events, assistantEvent] : prev.events;
-        return { ...prev, isRunning: false, currentContent: '', events };
+        if (!prev.isRunning) return prev;
+        const content = pendingContentRef.current;
+        pendingContentRef.current = '';
+        return {
+          ...prev,
+          isRunning: false,
+          currentContent: '',
+          completedTurns: content
+            ? [...prev.completedTurns, { role: 'assistant', content }]
+            : prev.completedTurns
+        };
       });
     }
   }, [config, provider, services, state.isRunning]);
@@ -141,11 +208,21 @@ export function useAgent(
   const reset = useCallback(() => {
     setState({
       isRunning: false,
-      events: [],
+      toolGroups: [],
       currentContent: '',
+      completedTurns: [],
       error: null
     });
   }, []);
 
-  return { state, start, abort, reset };
+  const toggleToolGroup = useCallback((idx: number) => {
+    setState(prev => ({
+      ...prev,
+      toolGroups: prev.toolGroups.map((g, i) =>
+        i === idx ? { ...g, expanded: !g.expanded } : g
+      )
+    }));
+  }, []);
+
+  return { state, start, abort, reset, toggleToolGroup };
 }
