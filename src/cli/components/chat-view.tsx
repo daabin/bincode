@@ -5,6 +5,7 @@
 import React from 'react';
 import { Text, Box } from 'ink';
 import type { AgentEvent } from '../../types/agent.js';
+import { Markdown } from '../../markdown.js';
 
 interface ChatViewProps {
   events: AgentEvent[];
@@ -44,9 +45,8 @@ function EventRow({ event }: { event: AgentEvent }) {
   switch (event.type) {
     case 'assistant':
       return (
-        <Box>
-          <Text color="cyan">┃ </Text>
-          <Text>{event.content}</Text>
+        <Box flexDirection="column">
+          <Markdown>{event.content}</Markdown>
         </Box>
       );
 
