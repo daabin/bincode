@@ -52,28 +52,7 @@ bincode
 npx @daabin/bincode
 ```
 
-### 方式三：下载独立二进制
-
-从 [GitHub Releases](https://github.com/daabin/bincode/releases) 下载对应平台的可执行文件：
-
-| 平台 | 文件 |
-|------|------|
-| Linux x64 | `bincode-linux-x64.tar.gz` |
-| macOS Intel | `bincode-macos-x64.tar.gz` |
-| macOS Apple Silicon | `bincode-macos-arm64.tar.gz` |
-| Windows x64 | `bincode-windows-x64.zip` |
-
-```bash
-# Linux/macOS
-tar -xzf bincode-*.tar.gz
-chmod +x bincode
-./bincode
-
-# Windows
-# 解压后双击 bincode.exe 或在终端运行
-```
-
-### 方式四：从源码构建
+### 方式三：从源码构建
 
 ```bash
 git clone https://github.com/daabin/bincode.git
@@ -166,59 +145,32 @@ bincode
 ```typescript
 import { createAgent } from '@daabin/bincode';
 
-// 创建 Agent（使用默认配置）
-const agent = createAgent();
-
-// 或者自定义配置
 const agent = createAgent({
   cwd: process.cwd(),
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  model: 'deepseek-chat',
-  maxIterations: 50
+  apiKey: process.env.DEEPSEEK_API_KEY
 });
 
-// 运行对话
 for await (const event of agent.run('帮我分析这个项目')) {
   if (event.type === 'assistant') {
     process.stdout.write(event.content);
   }
 }
-
-// 使用代码索引
-import { indexWorkspace, searchSymbols } from '@daabin/bincode';
-const entries = indexWorkspace('./src');
-const results = searchSymbols(entries, 'Agent');
 ```
+
+详细使用方法请查看 [开发文档](./docs/development/CONTRIBUTING.md)。
 
 ---
 
-## 项目结构
+## 📚 文档
 
-```
-bincode/
-├── src/
-│   ├── interfaces/       # 接口适配器层
-│   │   ├── cli/         # CLI 界面 (React Ink)
-│   │   ├── web/         # Web 服务器 (Express + SSE)
-│   │   └── vscode/      # VSCode 扩展 (未来)
-│   ├── core/            # 核心引擎
-│   │   ├── agent.ts     # Agent 主循环
-│   │   ├── tool-engine.ts
-│   │   ├── factory.ts   # Agent 工厂
-│   │   └── ...
-│   ├── tools/           # 工具实现
-│   │   ├── file-tools.ts
-│   │   ├── git-tools.ts
-│   │   └── ...
-│   ├── llm/             # LLM Provider
-│   │   └── deepseek.ts  # DeepSeek 实现
-│   ├── services/        # 服务层抽象
-│   ├── config/          # 配置管理
-│   ├── types/           # 类型定义
-│   └── index.ts         # 公共 API
-├── dist/                # 编译输出
-└── package.json
-```
+完整文档请访问 [docs/](./docs/) 目录：
+
+- **[快速入门](./docs/user-guide/GETTING_STARTED.md)** - 安装和基本使用
+- **[工具指南](./docs/user-guide/TOOLS.md)** - 所有可用工具
+- **[VSCode 扩展](./docs/user-guide/VSCODE.md)** - VSCode 集成
+- **[常见问题](./docs/user-guide/FAQ.md)** - 常见问题解答
+- **[贡献指南](./docs/development/CONTRIBUTING.md)** - 如何参与开发
+- **[架构设计](./docs/architecture/ARCHITECTURE.md)** - 技术架构
 
 ---
 
@@ -236,13 +188,9 @@ npm run build
 
 # 测试
 npm test
-
-# 类型检查
-npm run typecheck
-
-# 测试覆盖率
-npm run test:coverage
 ```
+
+更多开发信息请查看 [贡献指南](./docs/development/CONTRIBUTING.md)。
 
 ---
 
