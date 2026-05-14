@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { runTool } from './tools.js';
+import { runTool } from './tools/runner.js';
 
 describe('tools', () => {
   describe('edit_file', () => {

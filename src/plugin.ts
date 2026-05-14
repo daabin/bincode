@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import type { ToolDefinition } from './types.js';
+import type { ToolDefinition } from './types/core.js';
 
 /**
  * 插件清单文件

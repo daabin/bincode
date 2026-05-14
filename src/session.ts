@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import type { ChatMessage } from './types.js';
+import type { ChatMessage } from './types/index.js';
 
 /**
  * 会话元数据
