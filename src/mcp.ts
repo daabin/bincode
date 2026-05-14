@@ -1,5 +1,6 @@
+
 import { spawn, type ChildProcess } from 'node:child_process';
-import type { ToolDefinition } from './types.js';
+import type { ToolDefinition } from './types/core.js';
 
 /**
  * MCP Server 配置

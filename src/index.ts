@@ -1,22 +1,81 @@
 /**
  * bincode - A powerful CLI code agent
  *
- * This module exports the core components for programmatic use.
+ * Main entry point with unified exports for programmatic use.
+ * Architecture:
+ *   - types/     : Type definitions
+ *   - core/      : Agent engine, tool engine, message pipeline
+ *   - services/  : Abstracted service layer (file, git, search, web, etc.)
+ *   - tools/     : Tool definitions grouped by category
+ *   - llm/       : LLM provider implementations
+ *   - config/    : Configuration management
+ *   - cli/       : CLI application (React Ink)
+ *   - plugins/   : Plugin system
+ *   - utils/     : Utility functions
  */
 
-// Agent
-export { Agent } from './agent.js';
-export type { AgentConfig, AgentEvent } from './types.js';
+// ===== Types =====
+export type {
+  Role,
+  ChatMessage,
+  ToolCall,
+  ToolDefinition,
+  ToolCategory,
+  AgentEvent,
+  AgentConfig,
+  Config,
+  LLMConfig
+} from './types/index.js';
 
-// LLM Providers
+// ===== Core Engine =====
+export { Agent, ToolEngine, ConversationManager, MessagePipeline } from './core/index.js';
+export type { AgentOptions, ToolEngineConfig, MessageMiddleware } from './core/index.js';
+
+// ===== Services =====
+export {
+  createServiceContainer,
+  LocalFileSystemService,
+  LocalGitService,
+  RipgrepSearchService,
+  DefaultWebService,
+  LocalImageService,
+  SecureShellService
+} from './services/index.js';
+export type {
+  ServiceContainer,
+  IFileSystemService,
+  IGitService,
+  ISearchService,
+  IWebService,
+  IImageService,
+  IShellService,
+  FileInfo,
+  DirEntry,
+  GitStatus,
+  SearchMatch,
+  WebResult,
+  ImageAnalysis,
+  CommandResult
+} from './services/index.js';
+
+// ===== Tools =====
+export {
+  ToolRegistry,
+  fileTools,
+  gitTools,
+  searchTools,
+  webTools,
+  codeTools,
+  systemTools,
+  createDefaultToolRegistry
+} from './tools/index.js';
+export type { ToolHandler, ToolContext } from './tools/index.js';
+
+// ===== LLM Providers =====
 export { createProvider, detectAvailableProviders } from './llm/index.js';
 export type { LLMProvider, ProviderConfig, ProviderType } from './llm/types.js';
 
-// Tools
-export { toolDefinitions, runTool } from './tools.js';
-export type { ToolDefinition } from './types.js';
-
-// Configuration
+// ===== Configuration =====
 export {
   loadConfig,
   saveConfig,
@@ -26,11 +85,14 @@ export {
   setProvider,
   getBaseUrl,
   getModel,
-  getLLMConfig
-} from './config.js';
-export type { Config } from './config.js';
+  getLLMConfig,
+  isCommandAllowed,
+  getAllowedCommands,
+  ConfigWatcher
+} from './config/index.js';
+export type { ConfigChangeCallback } from './config/index.js';
 
-// Session management
+// ===== Session Management =====
 export {
   createSession,
   loadSession,
@@ -42,7 +104,7 @@ export {
 } from './session.js';
 export type { SessionData, SessionMeta } from './session.js';
 
-// Code indexing
+// ===== Code Indexing =====
 export {
   indexWorkspace,
   loadIndex,
@@ -52,7 +114,7 @@ export {
 } from './indexer.js';
 export type { IndexEntry, SymbolInfo, SearchResult } from './indexer.js';
 
-// Image analysis
+// ===== Image Analysis =====
 export {
   readImageAsBase64,
   analyzeImage,
@@ -60,9 +122,8 @@ export {
   getImageMimeType,
   buildMultimodalMessage
 } from './image.js';
-export type { ImageAnalysis } from './image.js';
 
-// Plugin system
+// ===== Plugin System =====
 export {
   loadPlugin,
   loadAllPlugins,
@@ -72,15 +133,14 @@ export {
 } from './plugin.js';
 export type { PluginManifest, LoadedPlugin } from './plugin.js';
 
-// MCP client
+// ===== MCP Client =====
 export { MCPClient } from './mcp.js';
 export type { MCPServerConfig, MCPToolDefinition, MCPToolResult } from './mcp.js';
 
-// Retry utilities
+// ===== Utilities =====
 export { withRetry, APIError, DEFAULT_RETRY_CONFIG } from './retry.js';
 export type { RetryableErrorType, RetryConfig } from './retry.js';
 
-// Token management
 export {
   TokenCounter,
   globalTokenCounter,
