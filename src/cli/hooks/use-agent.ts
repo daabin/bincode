@@ -69,7 +69,19 @@ export function useAgent(
       }
     };
 
+    // Track accumulated content for the current LLM turn.
+    // Must be reset to '' whenever we finalize it into state.events.
     let accumulatedContent = '';
+
+    // Flush buffered streaming content into state.events as a single assistant event,
+    // then reset tracking state. Returns the event added (or null if nothing to flush).
+    const finalizeAssistantContent = (): AgentEvent | null => {
+      if (!accumulatedContent) return null;
+      const event: AgentEvent = { type: 'assistant', content: accumulatedContent };
+      accumulatedContent = '';
+      pendingContentRef.current = '';
+      return event;
+    };
 
     try {
       for await (const event of agent.run(input)) {
@@ -81,26 +93,39 @@ export function useAgent(
           pendingContentRef.current = accumulatedContent;
           scheduleContentUpdate();
         } else {
-          // Non-streaming event: flush buffered content then add event
+          // Non-streaming event: finalize any buffered assistant content first,
+          // then add this event — all in one setState to avoid stale closures.
           flushAndClearTimer();
-          const snapshotContent = accumulatedContent;
-          setState(prev => ({
-            ...prev,
-            currentContent: snapshotContent,
-            events: [...prev.events, event],
-            error: event.type === 'error' ? event.message : prev.error
-          }));
+          const assistantEvent = finalizeAssistantContent();
+          setState(prev => {
+            const newEvents = assistantEvent
+              ? [...prev.events, assistantEvent, event]
+              : [...prev.events, event];
+            return {
+              ...prev,
+              currentContent: '',
+              events: newEvents
+              // error events are rendered by EventRow — no need to also set state.error
+            };
+          });
         }
       }
     } catch (error) {
       flushAndClearTimer();
-      setState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : String(error)
-      }));
+      const assistantEvent = finalizeAssistantContent();
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setState(prev => {
+        const events = assistantEvent ? [...prev.events, assistantEvent] : prev.events;
+        return { ...prev, events, error: errorMsg };
+      });
     } finally {
       flushAndClearTimer();
-      setState(prev => ({ ...prev, isRunning: false }));
+      // Flush any remaining assistant content that wasn't followed by a non-assistant event
+      const assistantEvent = finalizeAssistantContent();
+      setState(prev => {
+        const events = assistantEvent ? [...prev.events, assistantEvent] : prev.events;
+        return { ...prev, isRunning: false, currentContent: '', events };
+      });
     }
   }, [config, provider, services, state.isRunning]);
 
