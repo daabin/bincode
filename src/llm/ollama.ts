@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolDefinition, ToolCall } from '../types.js';
+import type { ChatMessage, ToolDefinition, ToolCall } from '../types/core.js';
 import type { LLMProvider } from './types.js';
 
 type OllamaResponse = {

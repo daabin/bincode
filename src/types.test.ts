@@ -1,156 +1,70 @@
 import { describe, it, expect } from 'vitest';
-import type { ChatMessage, ToolCall, ToolDefinition, AgentEvent, AgentConfig } from './types.js';
+import type { Role, ChatMessage, ToolCall, ToolDefinition, ToolCategory } from './types/index.js';
 
 describe('types', () => {
-  describe('ChatMessage', () => {
-    it('should create a valid user message', () => {
-      const message: ChatMessage = {
-        role: 'user',
-        content: 'Hello, world!',
-      };
-      expect(message.role).toBe('user');
-      expect(message.content).toBe('Hello, world!');
-    });
-
-    it('should create a valid assistant message with tool_calls', () => {
-      const toolCall: ToolCall = {
-        id: 'call_123',
-        type: 'function',
-        function: {
-          name: 'read_file',
-          arguments: '{"file_path": "/test.txt"}',
-        },
-      };
-
-      const message: ChatMessage = {
-        role: 'assistant',
-        content: null,
-        tool_calls: [toolCall],
-      };
-
-      expect(message.role).toBe('assistant');
-      expect(message.tool_calls).toHaveLength(1);
-      expect(message.tool_calls?.[0].function.name).toBe('read_file');
-    });
-
-    it('should create a valid tool response message', () => {
-      const message: ChatMessage = {
-        role: 'tool',
-        content: 'File content here',
-        tool_call_id: 'call_123',
-      };
-
-      expect(message.role).toBe('tool');
-      expect(message.tool_call_id).toBe('call_123');
-    });
-
-    it('should support reasoning_content for DeepSeek', () => {
-      const message: ChatMessage = {
-        role: 'assistant',
-        content: 'Final answer',
-        reasoning_content: 'Step 1: Analyze the problem...',
-      };
-
-      expect(message.reasoning_content).toBe('Step 1: Analyze the problem...');
+  describe('Role', () => {
+    it('should accept valid roles', () => {
+      const roles: Role[] = ['system', 'user', 'assistant', 'tool'];
+      expect(roles).toHaveLength(4);
     });
   });
 
-  describe('ToolCall', () => {
-    it('should have correct structure', () => {
-      const toolCall: ToolCall = {
-        id: 'call_456',
-        type: 'function',
-        function: {
-          name: 'write_file',
-          arguments: '{"file_path": "/test.txt", "content": "hello"}',
-        },
-      };
+  describe('ChatMessage', () => {
+    it('should create a valid user message', () => {
+      const msg: ChatMessage = { role: 'user', content: 'Hello' };
+      expect(msg.role).toBe('user');
+      expect(msg.content).toBe('Hello');
+    });
 
-      expect(toolCall.id).toBe('call_456');
-      expect(toolCall.type).toBe('function');
-      expect(toolCall.function.name).toBe('write_file');
-      expect(typeof toolCall.function.arguments).toBe('string');
+    it('should create a valid assistant message with tool calls', () => {
+      const msg: ChatMessage = {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'test', arguments: '{}' }
+        }]
+      };
+      expect(msg.tool_calls).toHaveLength(1);
+      expect(msg.tool_calls![0].function.name).toBe('test');
+    });
+
+    it('should create a valid tool result message', () => {
+      const msg: ChatMessage = {
+        role: 'tool',
+        content: 'Result',
+        tool_call_id: 'call_1'
+      };
+      expect(msg.tool_call_id).toBe('call_1');
     });
   });
 
   describe('ToolDefinition', () => {
-    it('should define a valid tool schema', () => {
-      const toolDef: ToolDefinition = {
+    it('should create a valid tool definition', () => {
+      const tool: ToolDefinition = {
         type: 'function',
         function: {
-          name: 'list_directory',
-          description: 'List directory contents',
+          name: 'test_tool',
+          description: 'A test tool',
           parameters: {
             type: 'object',
             properties: {
-              path: {
-                type: 'string',
-                description: 'Directory path',
-              },
+              name: { type: 'string' }
             },
-            required: ['path'],
-          },
-        },
+            required: ['name']
+          }
+        }
       };
-
-      expect(toolDef.type).toBe('function');
-      expect(toolDef.function.name).toBe('list_directory');
-      expect(toolDef.function.parameters.type).toBe('object');
-      expect(toolDef.function.parameters.required).toContain('path');
+      expect(tool.function.name).toBe('test_tool');
+      expect(tool.function.parameters.required).toContain('name');
     });
   });
 
-  describe('AgentEvent', () => {
-    it('should create assistant content event', () => {
-      const event: AgentEvent = {
-        type: 'assistant',
-        content: 'Hello!',
-      };
-      expect(event.type).toBe('assistant');
-    });
-
-    it('should create tool_call event', () => {
-      const event: AgentEvent = {
-        type: 'tool_call',
-        name: 'read_file',
-        args: { file_path: '/test.txt' },
-      };
-      expect(event.type).toBe('tool_call');
-    });
-
-    it('should create tool_result event', () => {
-      const event: AgentEvent = {
-        type: 'tool_result',
-        name: 'read_file',
-        result: 'File contents',
-      };
-      expect(event.type).toBe('tool_result');
-    });
-
-    it('should create error event', () => {
-      const event: AgentEvent = {
-        type: 'error',
-        message: 'Something went wrong',
-      };
-      expect(event.type).toBe('error');
-    });
-  });
-
-  describe('AgentConfig', () => {
-    it('should have all required fields', () => {
-      const config: AgentConfig = {
-        cwd: '/workspace',
-        apiKey: 'test-key',
-        baseUrl: 'https://api.example.com',
-        model: 'gpt-4',
-        maxIterations: 30,
-      };
-
-      expect(config.cwd).toBe('/workspace');
-      expect(config.apiKey).toBe('test-key');
-      expect(config.baseUrl).toBe('https://api.example.com');
-      expect(config.model).toBe('gpt-4');
-      expect(config.maxIterations).toBe(30);
+  describe('ToolCategory', () => {
+    it('should accept valid categories', () => {
+      const categories: ToolCategory[] = ['file', 'git', 'search', 'web', 'code', 'system'];
+      expect(categories).toHaveLength(6);
     });
   });
 });

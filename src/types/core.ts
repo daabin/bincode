@@ -1,3 +1,5 @@
+/** Core message and tool types used across the system */
+
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
 export type ChatMessage = {
@@ -31,16 +33,5 @@ export type ToolDefinition = {
   };
 };
 
-export type AgentEvent =
-  | { type: 'assistant'; content: string }
-  | { type: 'tool_call'; name: string; args: unknown }
-  | { type: 'tool_result'; name: string; result: string }
-  | { type: 'error'; message: string };
-
-export type AgentConfig = {
-  cwd: string;
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  maxIterations: number;
-};
+/** Tool category for grouping and permission management */
+export type ToolCategory = 'file' | 'git' | 'search' | 'web' | 'code' | 'system';

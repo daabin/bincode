@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolDefinition, ToolCall } from '../types.js';
+import type { ChatMessage, ToolDefinition, ToolCall } from '../types/core.js';
 
 /**
  * LLM Provider 统一接口

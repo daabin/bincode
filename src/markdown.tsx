@@ -1,94 +1,60 @@
 /**
- * Ink 适配的终端 Markdown 渲染器
+ * Ink-compatible terminal Markdown renderer
  *
- * 支持流式增量渲染，实时显示 Agent 输出
+ * Two modes:
+ *   streaming=false (default): one-shot full render via renderMarkdownToTerminal
+ *   streaming=true: incremental render using a ref-persisted TerminalMarkdownRenderer
+ *
+ * Uses useMemo (synchronous) instead of useEffect+setState to avoid the
+ * extra Ink render cycle that caused visible flashing.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Text } from 'ink';
 import {
   renderMarkdownToTerminal,
-  createStreamingRenderer,
-  type TerminalMarkdownRenderer
+  TerminalMarkdownRenderer
 } from './utils/terminalMarkdownRenderer.js';
+
+const RENDER_OPTS = { enableHighlight: true, enableColor: true, escapeHtml: false };
 
 export interface MarkdownProps {
   children: string;
-  streaming?: boolean;  // 是否正在流式输出
+  /** Set to true while content is still streaming in; false (default) for finalized text */
+  streaming?: boolean;
 }
 
-/**
- * Ink Markdown 组件
- *
- * 特性：
- * - 代码高亮（180+ 语言）
- * - GFM 扩展（表格、任务列表等）
- * - 流式渲染支持
- * - 自动颜色支持
- */
 export function Markdown({ children, streaming = false }: MarkdownProps): JSX.Element {
+  // Persistent incremental renderer for streaming mode.
+  // Ref survives renders without triggering re-renders itself.
   const rendererRef = useRef<TerminalMarkdownRenderer | null>(null);
-  const lastContentRef = useRef<string>('');
-  const [rendered, setRendered] = React.useState<string>('');
+  const prevLenRef = useRef(0);
 
-  useEffect(() => {
-    if (!children || children.trim().length === 0) {
-      setRendered('');
-      return;
-    }
+  // useMemo ensures rendering is synchronous with the Ink render pass —
+  // no extra useState cycle, no second redraw.
+  const rendered = useMemo(() => {
+    if (!children) return '';
 
-    try {
-      if (streaming) {
-        // 流式模式：使用增量渲染
-        if (!rendererRef.current) {
-          rendererRef.current = createStreamingRenderer({
-            enableHighlight: true,
-            enableColor: true,
-            escapeHtml: false
-          });
-        }
-
-        // 计算新增的内容
-        const newContent = children.slice(lastContentRef.current.length);
-        if (newContent.length > 0) {
-          // 追加新内容并获取完整渲染结果
-          rendererRef.current.appendChunk(newContent);
-          const fullRendered = rendererRef.current.getRendered() ||
-                               rendererRef.current.getBuffer();
-          setRendered(fullRendered);
-          lastContentRef.current = children;
-        }
-      } else {
-        // 非流式模式：完整渲染
-        // 如果之前在流式模式，先完成渲染
-        if (rendererRef.current) {
-          const finalRendered = rendererRef.current.finalize();
-          setRendered(finalRendered);
-          rendererRef.current = null;
-          lastContentRef.current = '';
-        } else {
-          // 直接渲染完整内容
-          const result = renderMarkdownToTerminal(children, {
-            enableHighlight: true,
-            enableColor: true,
-            escapeHtml: false
-          });
-          setRendered(result);
-        }
+    if (streaming) {
+      // Create renderer on first chunk; reuse on subsequent chunks.
+      if (!rendererRef.current) {
+        rendererRef.current = new TerminalMarkdownRenderer({ ...RENDER_OPTS, enableStreaming: true });
+        prevLenRef.current = 0;
       }
-    } catch (error) {
-      console.error('[Markdown] Render error:', error);
-      setRendered(children); // 渲染失败时返回原始文本
-    }
-  }, [children, streaming]);
-
-  // 清理：组件卸载时重置
-  useEffect(() => {
-    return () => {
+      const newContent = children.slice(prevLenRef.current);
+      if (newContent.length > 0) {
+        rendererRef.current.appendChunk(newContent);
+        prevLenRef.current = children.length;
+      }
+      return rendererRef.current.finalize();
+    } else {
+      // Finalize any leftover streaming renderer, then do a clean full render.
       rendererRef.current = null;
-      lastContentRef.current = '';
-    };
-  }, []);
+      prevLenRef.current = 0;
+      return renderMarkdownToTerminal(children, RENDER_OPTS);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [children, streaming]);
 
   return <Text>{rendered}</Text>;
 }

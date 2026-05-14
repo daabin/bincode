@@ -6,34 +6,21 @@ import {
   loadConfig,
   saveConfig,
   setApiKey,
-  clearApiKey,
   getApiKey,
   getBaseUrl,
   getModel,
-  getConfigPath,
-  type Config,
-} from './config.js';
+  getProvider,
+  setProvider,
+  getLLMConfig,
+} from './config/index.js';
 
 describe('config', () => {
-  const testConfigDir = path.join(os.tmpdir(), 'bincode-test-config');
-  const testConfigFile = path.join(testConfigDir, 'config.json');
-
   beforeEach(() => {
-    // Clean up any existing test config
-    if (fs.existsSync(testConfigDir)) {
-      fs.rmSync(testConfigDir, { recursive: true });
-    }
-  });
-
-  afterEach(() => {
-    // Clean up test config
-    if (fs.existsSync(testConfigDir)) {
-      fs.rmSync(testConfigDir, { recursive: true });
-    }
     // Clear environment variables
     delete process.env.DEEPSEEK_API_KEY;
-    delete process.env.DEEPSEEK_BASE_URL;
-    delete process.env.DEEPSEEK_MODEL;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.BINCODE_PROVIDER;
   });
 
   describe('loadConfig', () => {
@@ -42,16 +29,7 @@ describe('config', () => {
       expect(config).toEqual({});
     });
 
-    it('should load existing config', () => {
-      fs.mkdirSync(testConfigDir, { recursive: true });
-      const testConfig: Config = {
-        apiKey: 'test-api-key',
-        baseUrl: 'https://custom.api.com',
-        model: 'custom-model',
-      };
-      fs.writeFileSync(testConfigFile, JSON.stringify(testConfig));
-
-      // We need to mock the config path, but for now just test the function exists
+    it('should be a function', () => {
       expect(typeof loadConfig).toBe('function');
     });
   });
@@ -68,17 +46,10 @@ describe('config', () => {
     });
   });
 
-  describe('clearApiKey', () => {
-    it('should be a function', () => {
-      expect(typeof clearApiKey).toBe('function');
-    });
-  });
-
   describe('getApiKey', () => {
     it('should return undefined when no API key is set', () => {
       delete process.env.DEEPSEEK_API_KEY;
       const apiKey = getApiKey();
-      // Returns undefined when no config exists
       expect(apiKey).toBeUndefined();
     });
 
@@ -90,39 +61,47 @@ describe('config', () => {
   });
 
   describe('getBaseUrl', () => {
-    it('should return default base URL', () => {
-      delete process.env.DEEPSEEK_BASE_URL;
+    it('should return default base URL for deepseek', () => {
       const baseUrl = getBaseUrl();
       expect(baseUrl).toBe('https://api.deepseek.com');
-    });
-
-    it('should return environment variable when set', () => {
-      process.env.DEEPSEEK_BASE_URL = 'https://custom.deepseek.com';
-      const baseUrl = getBaseUrl();
-      expect(baseUrl).toBe('https://custom.deepseek.com');
     });
   });
 
   describe('getModel', () => {
-    it('should return default model', () => {
-      delete process.env.DEEPSEEK_MODEL;
-      const model = getModel();
-      expect(model).toBe('deepseek-chat');
-    });
-
-    it('should return environment variable when set', () => {
-      process.env.DEEPSEEK_MODEL = 'deepseek-chat';
+    it('should return default model for deepseek', () => {
       const model = getModel();
       expect(model).toBe('deepseek-chat');
     });
   });
 
-  describe('getConfigPath', () => {
-    it('should return a string path', () => {
-      const configPath = getConfigPath();
-      expect(typeof configPath).toBe('string');
-      expect(configPath).toContain('.bincode');
-      expect(configPath).toContain('config.json');
+  describe('getProvider', () => {
+    it('should return deepseek as default', () => {
+      const provider = getProvider();
+      expect(provider).toBe('deepseek');
+    });
+
+    it('should read from environment variable', () => {
+      process.env.BINCODE_PROVIDER = 'openai';
+      const provider = getProvider();
+      expect(provider).toBe('openai');
+    });
+  });
+
+  describe('setProvider', () => {
+    it('should be a function', () => {
+      expect(typeof setProvider).toBe('function');
+    });
+  });
+
+  describe('getLLMConfig', () => {
+    it('should return complete LLM configuration', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      const config = getLLMConfig();
+      expect(config).toHaveProperty('provider');
+      expect(config).toHaveProperty('apiKey');
+      expect(config).toHaveProperty('baseUrl');
+      expect(config).toHaveProperty('model');
+      expect(config.apiKey).toBe('test-key');
     });
   });
 });

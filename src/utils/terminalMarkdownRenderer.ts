@@ -14,9 +14,22 @@
 import { marked } from 'marked';
 // @ts-ignore - marked-terminal 类型定义不完整
 import { markedTerminal } from 'marked-terminal';
-import hljs from 'highlight.js';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
+
+// ============================================================================
+// Module-level singleton: configure marked ONCE
+// Calling marked.use() multiple times stacks renderers — avoid per-instance calls.
+// ============================================================================
+let markedConfigured = false;
+
+function ensureMarkedConfigured(): void {
+  if (markedConfigured) return;
+  markedConfigured = true;
+  // @ts-ignore
+  marked.use(markedTerminal());
+  marked.use({ gfm: true, breaks: true, pedantic: false });
+}
 
 // ============================================================================
 // 类型定义
@@ -158,29 +171,8 @@ function smartSplitMarkdown(text: string): { complete: string; incomplete: strin
 }
 
 // ============================================================================
-// Marked 配置
+// Marked 配置 (kept for reference, actual init is the singleton above)
 // ============================================================================
-
-/**
- * 配置 marked 渲染器
- */
-function configureMarked(options: RendererOptions): void {
-  const enableColor = options.enableColor ?? supportsColor();
-  const enableHighlight = options.enableHighlight ?? true;
-
-  // 配置 marked-terminal（使用简化配置）
-  // @ts-ignore
-  marked.use(markedTerminal());
-
-  // GFM 扩展
-  marked.use({
-    gfm: true,
-    breaks: true,
-    pedantic: false
-  });
-
-  // HTML 转义配置已内置到 markedTerminal 中
-}
 
 // ============================================================================
 // 核心渲染类
@@ -218,9 +210,7 @@ export class TerminalMarkdownRenderer {
     };
 
     this.state = this.createInitialState();
-
-    // 配置 marked
-    configureMarked(this.options);
+    ensureMarkedConfigured();
   }
 
   /**

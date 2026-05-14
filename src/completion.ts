@@ -1,6 +1,6 @@
 import { createProvider, type ProviderType } from './llm/index.js';
 import type { LLMProvider } from './llm/types.js';
-import { getProvider, getApiKey, getBaseUrl, getModel } from './config.js';
+import { getProvider, getApiKey, getBaseUrl, getModel } from './config/index.js';
 
 /**
  * 代码补全请求
