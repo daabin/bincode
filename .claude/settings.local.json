@@ -51,7 +51,11 @@
       "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"say hello\"}' -N)",
       "Bash(curl -X POST http://localhost:3003/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"hello\"}' -N -m 10)",
       "Bash(node test-sse-client.js)",
-      "Bash(chmod +x /Users/daabin/codinglab/bincode/test-vscode-extension.sh)"
+      "Bash(chmod +x /Users/daabin/codinglab/bincode/test-vscode-extension.sh)",
+      "WebFetch(domain:open.feishu.cn)",
+      "Bash(npx -y skills add https://open.feishu.cn --skill -y)",
+      "Bash(lark-cli config *)",
+      "Bash(lark-cli auth *)"
     ],
     "additionalDirectories": [
       "/Users/daabin/codinglab/bincode/src",

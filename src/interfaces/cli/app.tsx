@@ -10,7 +10,8 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Text, Box, useInput } from 'ink';
+import { Text, Box, useInput, useStdout } from 'ink';
+import chalk from 'chalk';
 import { ChatView } from './components/chat-view.js';
 import { StatusBar } from './components/status-bar.js';
 import { useAgent } from './hooks/use-agent.js';
@@ -46,6 +47,8 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
   const baseUrl = getBaseUrl();
   const model = getModel();
 
+  const { write } = useStdout();
+
   const [input, setInput] = useState(initialInput || '');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -68,7 +71,7 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
     provider: PROVIDER
   }), [cwd, apiKey, baseUrl, model]);
 
-  const agent = useAgent(provider, services, agentConfig);
+  const agent = useAgent(provider, services, agentConfig, write);
 
   const handleSubmit = useCallback((text: string) => {
     const trimmed = text.trim();
@@ -83,18 +86,21 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
     }
 
     if (trimmed === '/help') {
-      process.stdout.write(HELP_TEXT);
+      write(HELP_TEXT);
       setInput('');
       return;
     }
 
     if (agent.state.isRunning) return;
 
+    // Write user message to scrollback before starting the agent
+    write(chalk.bold.green('\n❯ ') + chalk.bold(trimmed) + '\n\n');
+
     setHistory(prev => [...prev, trimmed]);
     setHistoryIndex(-1);
     setInput('');
     agent.start(trimmed);
-  }, [agent]);
+  }, [agent, write]);
 
   useInput((inputChar, key) => {
     if (key.return) {
@@ -165,9 +171,8 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
 
   return (
     <Box flexDirection="column">
-      {/* Bounded active-turn area — completed turns are on scrollback above */}
+      {/* Bounded active-turn area — all completed output is in scrollback above */}
       <ChatView
-        completedTurns={agent.state.completedTurns}
         toolGroups={agent.state.toolGroups}
         currentContent={agent.state.currentContent}
         error={agent.state.error}
@@ -187,7 +192,7 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
         provider={PROVIDER}
         model={model}
         isRunning={agent.state.isRunning}
-        messageCount={agent.state.completedTurns.length}
+        messageCount={agent.state.messageCount}
       />
     </Box>
   );

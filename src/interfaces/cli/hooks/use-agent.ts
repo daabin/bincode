@@ -2,50 +2,99 @@
  * React hook for managing agent lifecycle in CLI
  *
  * Key design choices:
- * - Streaming tokens accumulate in a ref (pendingContentRef), flushed to state
- *   at most once per STREAM_THROTTLE_MS → caps Ink redraws to ~20/sec
- * - Tool calls are grouped with their results in ToolGroup[]
- * - Completed turns go into completedTurns[] where ChatView prints them
- *   permanently to terminal scrollback (zero flashing for history)
+ * - All output (user messages, streaming content, completed turns) is written
+ *   directly to terminal scrollback via the `write` callback (from Ink's
+ *   useStdout). Ink only manages the thin bottom region (tool rows + input bar).
+ * - Completed paragraphs are flushed to stdout as soon as a blank-line boundary
+ *   is detected (outside code blocks), so Ink never holds large amounts of text.
+ * - The "current paragraph" preview (the incomplete paragraph being streamed) is
+ *   held in state so the user sees content arriving in real time.
+ * - Streaming tokens accumulate in a ref; state updates are throttled to
+ *   STREAM_THROTTLE_MS to cap Ink redraws.
  */
 
 import { useState, useCallback, useRef } from 'react';
 import { Agent } from '../../../core/agent.js';
-import type { AgentEvent, ToolGroup, CompletedTurn } from '../../../types/agent.js';
+import type { ToolGroup } from '../../../types/agent.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import type { ServiceContainer } from '../../../services/index.js';
 import type { AgentConfig } from '../../../types/agent.js';
+import { renderMarkdownToTerminal } from '../../../utils/terminalMarkdownRenderer.js';
 
 const STREAM_THROTTLE_MS = 50;
+const RENDER_OPTS = { enableHighlight: true, enableColor: true, escapeHtml: false };
+
+/**
+ * Returns the position just after the last paragraph break (\n\n) that is
+ * NOT inside an unclosed fenced code block. Returns -1 if none found.
+ */
+function findFlushPoint(content: string): number {
+  let pos = content.lastIndexOf('\n\n');
+  while (pos >= 0) {
+    const before = content.slice(0, pos + 2);
+    const fences = before.match(/```/g);
+    if (!fences || fences.length % 2 === 0) return pos + 2;
+    pos = content.lastIndexOf('\n\n', pos - 1);
+  }
+  return -1;
+}
 
 export interface AgentState {
   isRunning: boolean;
   toolGroups: ToolGroup[];
+  /** Raw text of the current (incomplete) streaming paragraph shown in Ink */
   currentContent: string;
-  completedTurns: CompletedTurn[];
+  /** Total messages sent/received, for the status bar */
+  messageCount: number;
   error: string | null;
 }
 
 export function useAgent(
   provider: LLMProvider,
   services: ServiceContainer,
-  config: AgentConfig
+  config: AgentConfig,
+  /** Ink's useStdout().write — places text above Ink's managed region */
+  write: (text: string) => void
 ) {
   const [state, setState] = useState<AgentState>({
     isRunning: false,
     toolGroups: [],
     currentContent: '',
-    completedTurns: [],
+    messageCount: 0,
     error: null
   });
 
   const agentRef = useRef<Agent | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Full accumulated raw content for the current assistant turn */
   const pendingContentRef = useRef<string>('');
+  /** How many raw chars of pendingContent have already been written to stdout */
+  const flushedRawLengthRef = useRef<number>(0);
+  /** Always points to the latest `write` function (avoids stale closures) */
+  const writeRef = useRef(write);
+  writeRef.current = write;
+
+  /** Flush all pending content to stdout immediately and reset tracking refs. */
+  const flushPending = useCallback(() => {
+    if (streamTimerRef.current !== null) {
+      clearTimeout(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+    const content = pendingContentRef.current;
+    const remaining = content.slice(flushedRawLengthRef.current);
+    if (remaining.trim()) {
+      writeRef.current(renderMarkdownToTerminal(remaining, RENDER_OPTS).trimEnd() + '\n\n');
+    }
+    pendingContentRef.current = '';
+    flushedRawLengthRef.current = 0;
+  }, []);
 
   const start = useCallback(async (input: string) => {
     if (state.isRunning) return;
+
+    pendingContentRef.current = '';
+    flushedRawLengthRef.current = 0;
 
     const agent = new Agent({ config, provider, services });
     agentRef.current = agent;
@@ -57,33 +106,49 @@ export function useAgent(
       toolGroups: [],
       currentContent: '',
       error: null,
-      completedTurns: [...prev.completedTurns, { role: 'user', content: input }]
+      messageCount: prev.messageCount + 1
     }));
-
-    const scheduleContentUpdate = () => {
-      if (streamTimerRef.current === null) {
-        streamTimerRef.current = setTimeout(() => {
-          streamTimerRef.current = null;
-          setState(prev => ({ ...prev, currentContent: pendingContentRef.current }));
-        }, STREAM_THROTTLE_MS);
-      }
-    };
-
-    const flushAndClearTimer = () => {
-      if (streamTimerRef.current !== null) {
-        clearTimeout(streamTimerRef.current);
-        streamTimerRef.current = null;
-      }
-    };
 
     let accumulatedContent = '';
     let currentToolGroups: ToolGroup[] = [];
 
-    const drainContent = (): string => {
-      const c = accumulatedContent;
+    /** Schedule a throttled flush: write completed paragraphs to stdout,
+     *  update Ink state with the remaining incomplete paragraph. */
+    const scheduleFlush = () => {
+      if (streamTimerRef.current === null) {
+        streamTimerRef.current = setTimeout(() => {
+          streamTimerRef.current = null;
+          const content = pendingContentRef.current;
+          const flushedLen = flushedRawLengthRef.current;
+          const flushPoint = findFlushPoint(content);
+
+          if (flushPoint > flushedLen) {
+            const chunk = content.slice(flushedLen, flushPoint);
+            writeRef.current(renderMarkdownToTerminal(chunk, RENDER_OPTS).trimEnd() + '\n\n');
+            flushedRawLengthRef.current = flushPoint;
+          }
+
+          // Show only the current (incomplete) paragraph in Ink
+          setState(prev => ({
+            ...prev,
+            currentContent: content.slice(flushedRawLengthRef.current)
+          }));
+        }, STREAM_THROTTLE_MS);
+      }
+    };
+
+    const flushTurn = () => {
+      if (streamTimerRef.current !== null) {
+        clearTimeout(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+      const remaining = accumulatedContent.slice(flushedRawLengthRef.current);
+      if (remaining.trim()) {
+        writeRef.current(renderMarkdownToTerminal(remaining, RENDER_OPTS).trimEnd() + '\n\n');
+      }
       accumulatedContent = '';
       pendingContentRef.current = '';
-      return c;
+      flushedRawLengthRef.current = 0;
     };
 
     try {
@@ -94,19 +159,17 @@ export function useAgent(
           case 'assistant':
             accumulatedContent += event.content;
             pendingContentRef.current = accumulatedContent;
-            scheduleContentUpdate();
+            scheduleFlush();
             break;
 
           case 'reasoning':
-            // Show reasoning as dimmed quoted block during streaming
             accumulatedContent += `\n> *${event.content}*\n`;
             pendingContentRef.current = accumulatedContent;
-            scheduleContentUpdate();
+            scheduleFlush();
             break;
 
           case 'tool_call': {
-            flushAndClearTimer();
-            const content = drainContent();
+            flushTurn();
             const newGroup: ToolGroup = {
               call: { name: event.name, args: event.args, category: event.category },
               expanded: false
@@ -116,9 +179,6 @@ export function useAgent(
               ...prev,
               currentContent: '',
               toolGroups: currentToolGroups,
-              completedTurns: content
-                ? [...prev.completedTurns, { role: 'assistant', content }]
-                : prev.completedTurns
             }));
             break;
           }
@@ -135,82 +195,66 @@ export function useAgent(
           }
 
           case 'done': {
-            flushAndClearTimer();
-            const content = drainContent();
+            flushTurn();
             currentToolGroups = [];
             setState(prev => ({
               ...prev,
               isRunning: false,
               currentContent: '',
               toolGroups: [],
-              completedTurns: content
-                ? [...prev.completedTurns, { role: 'assistant', content }]
-                : prev.completedTurns
+              messageCount: prev.messageCount + 1
             }));
             break;
           }
 
           case 'error': {
-            flushAndClearTimer();
-            const content = drainContent();
+            flushTurn();
             setState(prev => ({
               ...prev,
+              isRunning: false,
+              currentContent: '',
               error: event.message,
-              completedTurns: content
-                ? [...prev.completedTurns, { role: 'assistant', content }]
-                : prev.completedTurns
             }));
             break;
           }
         }
       }
     } catch (error) {
-      flushAndClearTimer();
-      const content = drainContent();
+      flushTurn();
       const errorMsg = error instanceof Error ? error.message : String(error);
       setState(prev => ({
         ...prev,
         isRunning: false,
         currentContent: '',
         error: errorMsg,
-        completedTurns: content
-          ? [...prev.completedTurns, { role: 'assistant', content }]
-          : prev.completedTurns
       }));
     } finally {
-      flushAndClearTimer();
-      // Safety net: ensure we always exit running state
+      // Safety net: always exit running state
+      if (streamTimerRef.current !== null) {
+        clearTimeout(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
       setState(prev => {
         if (!prev.isRunning) return prev;
-        const content = pendingContentRef.current;
-        pendingContentRef.current = '';
-        return {
-          ...prev,
-          isRunning: false,
-          currentContent: '',
-          completedTurns: content
-            ? [...prev.completedTurns, { role: 'assistant', content }]
-            : prev.completedTurns
-        };
+        return { ...prev, isRunning: false, currentContent: '' };
       });
     }
   }, [config, provider, services, state.isRunning]);
 
   const abort = useCallback(() => {
     abortRef.current?.abort();
-    if (streamTimerRef.current !== null) {
-      clearTimeout(streamTimerRef.current);
-      streamTimerRef.current = null;
-    }
-    setState(prev => ({ ...prev, isRunning: false }));
-  }, []);
+    flushPending();
+    setState(prev => ({ ...prev, isRunning: false, currentContent: '' }));
+  }, [flushPending]);
 
   const reset = useCallback(() => {
+    pendingContentRef.current = '';
+    flushedRawLengthRef.current = 0;
     setState({
       isRunning: false,
       toolGroups: [],
       currentContent: '',
-      completedTurns: [],
+      messageCount: 0,
       error: null
     });
   }, []);
