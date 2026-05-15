@@ -6,6 +6,14 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { Agent, createAgent } from '../../core/index.js';
 import { getApiKey, getModel, getBaseUrl } from '../../config/index.js';
+import {
+  listSessions,
+  loadSession,
+  saveSession,
+  updateSession,
+  createSession,
+  type SessionData
+} from '../../session.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -20,9 +28,11 @@ app.use(express.static(PUBLIC_DIR));
 
 // In-memory session store: sessionId -> Agent
 const sessions = new Map<string, Agent>();
+// Session data store: sessionId -> SessionData (for persistence)
+const sessionData = new Map<string, SessionData>();
 
-function makeAgent(): Agent {
-  return createAgent();
+function makeAgent(initialMessages?: SessionData['messages']): Agent {
+  return createAgent({ initialMessages });
 }
 
 function generateId(): string {
@@ -54,15 +64,40 @@ app.post('/api/chat', (req, res) => {
   }
 
   // Resolve or create session
-  const sessionId = (clientSessionId && sessions.has(clientSessionId))
-    ? clientSessionId
-    : generateId();
+  let sessionId: string;
+  if (clientSessionId && sessions.has(clientSessionId)) {
+    sessionId = clientSessionId;
+  } else if (clientSessionId) {
+    // Try to restore from disk
+    const persisted = loadSession(clientSessionId);
+    if (persisted) {
+      sessionId = clientSessionId;
+      const agent = makeAgent(persisted.messages);
+      sessions.set(sessionId, agent);
+      sessionData.set(sessionId, persisted);
+    } else {
+      sessionId = generateId();
+    }
+  } else {
+    sessionId = generateId();
+  }
 
   if (!sessions.has(sessionId)) {
     sessions.set(sessionId, makeAgent());
+    const model = getModel();
+    const session = createSession('deepseek', model);
+    // Override the auto-generated ID with our sessionId
+    sessionData.set(sessionId, { ...session, meta: { ...session.meta, id: sessionId } });
   }
 
   const agent = sessions.get(sessionId)!;
+  let data = sessionData.get(sessionId);
+  if (!data) {
+    const model = getModel();
+    const session = createSession('deepseek', model);
+    data = { ...session, meta: { ...session.meta, id: sessionId } };
+    sessionData.set(sessionId, data);
+  }
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -71,8 +106,8 @@ app.post('/api/chat', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
-  const send = (data: object) => {
-    if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const send = (payload: object) => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify(payload)}\n\n`);
   };
 
   // First event: session assignment
@@ -85,6 +120,18 @@ app.post('/api/chat', (req, res) => {
       for await (const event of agent.run(message.trim())) {
         if (aborted) break;
         send(event);
+
+        if (event.type === 'done') {
+          // Persist session after each completed turn
+          try {
+            const messages = agent.getConversation().getMessages();
+            const updated = updateSession(data!, messages);
+            sessionData.set(sessionId, updated);
+            saveSession(updated);
+          } catch {
+            // Non-fatal
+          }
+        }
       }
       send({ type: 'done' });
     } catch (err) {
@@ -99,11 +146,31 @@ app.post('/api/chat', (req, res) => {
 });
 
 /**
- * DELETE /api/session/:id — remove a session from memory
+ * GET /api/sessions — list all persisted sessions (most recent first)
+ */
+app.get('/api/sessions', (_req, res) => {
+  res.json(listSessions());
+});
+
+/**
+ * GET /api/session/:id — get full session data (messages)
+ */
+app.get('/api/session/:id', (req, res) => {
+  const session = loadSession(req.params.id);
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+  res.json(session);
+});
+
+/**
+ * DELETE /api/session/:id — remove a session from memory and disk
  */
 app.delete('/api/session/:id', (req, res) => {
   const { id } = req.params;
   sessions.delete(id);
+  sessionData.delete(id);
   res.json({ deleted: id });
 });
 

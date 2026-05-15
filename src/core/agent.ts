@@ -30,6 +30,8 @@ export interface AgentOptions {
   services: ServiceContainer;
   systemPrompt?: string;
   pipeline?: MessagePipeline;
+  /** Pre-load historical messages (e.g. from a persisted session) */
+  initialMessages?: ChatMessage[];
 }
 
 export class Agent {
@@ -45,6 +47,9 @@ export class Agent {
     this.pipeline = options.pipeline ?? new MessagePipeline();
 
     this.conversation = new ConversationManager(options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT);
+    if (options.initialMessages && options.initialMessages.length > 0) {
+      this.conversation.loadMessages(options.initialMessages);
+    }
     this.toolEngine = new ToolEngine({
       cwd: options.config.cwd,
       services: options.services

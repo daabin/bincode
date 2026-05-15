@@ -2,11 +2,12 @@
  * Main CLI application — DeepSeek only
  *
  * UX improvements over the previous version:
- *   • /clear, /help slash commands
+ *   • /clear, /help, /sessions, /resume slash commands
  *   • Ctrl+C: first press aborts current run; second press within 1s exits
  *   • Escape: abort current run
  *   • ↑/↓ input history navigation
  *   • Spinner glyph while running
+ *   • Session persistence to ~/.bincode/sessions/
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -26,8 +27,10 @@ const HELP_TEXT = [
   'bincode — AI code agent (powered by DeepSeek)',
   '',
   'Commands:',
-  '  /clear   Clear conversation history',
-  '  /help    Show this help',
+  '  /clear          Clear conversation (start a new session)',
+  '  /help           Show this help',
+  '  /sessions       List recent sessions',
+  '  /resume <id>    Resume a previous session by ID (or ID prefix)',
   '',
   'Shortcuts:',
   '  Enter    Submit message',
@@ -36,6 +39,17 @@ const HELP_TEXT = [
   '  ↑ / ↓   Navigate input history',
   '',
 ].join('\n');
+
+/** Format a timestamp as a human-readable relative time */
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
 interface AppProps {
   initialInput?: string;
@@ -82,11 +96,59 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
       setInput('');
       setHistory([]);
       setHistoryIndex(-1);
+      write(chalk.dim('\n— new session —\n\n'));
       return;
     }
 
     if (trimmed === '/help') {
       write(HELP_TEXT);
+      setInput('');
+      return;
+    }
+
+    if (trimmed === '/sessions') {
+      const sessions = agent.getSessions();
+      if (sessions.length === 0) {
+        write(chalk.dim('\nNo sessions found.\n\n'));
+      } else {
+        const header = chalk.bold('\nRecent sessions:\n');
+        const rows = sessions.slice(0, 15).map(s => {
+          const id = chalk.cyan(s.id.slice(0, 8));
+          const title = chalk.white(s.title.slice(0, 40).padEnd(40));
+          const msgs = chalk.dim(`${s.messageCount} msgs`);
+          const time = chalk.dim(relativeTime(s.updatedAt));
+          return `  ${id}  ${title}  ${msgs}  ${time}`;
+        });
+        write(header + rows.join('\n') + chalk.dim('\n\nUse /resume <id> to continue a session.\n\n'));
+      }
+      setInput('');
+      return;
+    }
+
+    if (trimmed.startsWith('/resume ')) {
+      const prefix = trimmed.slice(8).trim();
+      if (!prefix) {
+        write(chalk.red('\nUsage: /resume <session-id>\n\n'));
+        setInput('');
+        return;
+      }
+      // Allow prefix matching (at least 4 chars)
+      const sessions = agent.getSessions();
+      const match = sessions.find(s => s.id.startsWith(prefix));
+      if (!match) {
+        write(chalk.red(`\nNo session matching "${prefix}".\n`) +
+              chalk.dim('Use /sessions to list available sessions.\n\n'));
+        setInput('');
+        return;
+      }
+      const err = agent.resumeSession(match.id);
+      if (err) {
+        write(chalk.red(`\n✖ ${err}\n\n`));
+      } else {
+        write(chalk.green(`\n✔ Resumed session ${chalk.cyan(match.id.slice(0, 8))}: `) +
+              chalk.bold(match.title) + '\n' +
+              chalk.dim(`  ${match.messageCount} messages  ·  ${relativeTime(match.updatedAt)}\n\n`));
+      }
       setInput('');
       return;
     }
@@ -193,6 +255,7 @@ export function App({ initialInput, cwd = process.cwd() }: AppProps) {
         model={model}
         isRunning={agent.state.isRunning}
         messageCount={agent.state.messageCount}
+        sessionId={agent.state.sessionId}
       />
     </Box>
   );

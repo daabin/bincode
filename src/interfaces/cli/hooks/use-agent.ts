@@ -11,6 +11,7 @@
  *   held in state so the user sees content arriving in real time.
  * - Streaming tokens accumulate in a ref; state updates are throttled to
  *   STREAM_THROTTLE_MS to cap Ink redraws.
+ * - Each conversation is persisted to ~/.bincode/sessions/ after every turn.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -20,6 +21,15 @@ import type { LLMProvider } from '../../../llm/types.js';
 import type { ServiceContainer } from '../../../services/index.js';
 import type { AgentConfig } from '../../../types/agent.js';
 import { renderMarkdownToTerminal } from '../../../utils/terminalMarkdownRenderer.js';
+import {
+  createSession,
+  loadSession,
+  saveSession,
+  updateSession,
+  listSessions,
+  type SessionData,
+  type SessionMeta
+} from '../../../session.js';
 
 const STREAM_THROTTLE_MS = 50;
 const RENDER_OPTS = { enableHighlight: true, enableColor: true, escapeHtml: false };
@@ -47,6 +57,8 @@ export interface AgentState {
   /** Total messages sent/received, for the status bar */
   messageCount: number;
   error: string | null;
+  /** Current session ID (first 8 chars shown in status bar) */
+  sessionId: string | null;
 }
 
 export function useAgent(
@@ -61,7 +73,8 @@ export function useAgent(
     toolGroups: [],
     currentContent: '',
     messageCount: 0,
-    error: null
+    error: null,
+    sessionId: null,
   });
 
   const agentRef = useRef<Agent | null>(null);
@@ -74,6 +87,8 @@ export function useAgent(
   /** Always points to the latest `write` function (avoids stale closures) */
   const writeRef = useRef(write);
   writeRef.current = write;
+  /** Current session data */
+  const sessionRef = useRef<SessionData | null>(null);
 
   /** Flush all pending content to stdout immediately and reset tracking refs. */
   const flushPending = useCallback(() => {
@@ -90,11 +105,31 @@ export function useAgent(
     flushedRawLengthRef.current = 0;
   }, []);
 
+  /** Persist current session to disk */
+  const persistSession = useCallback((agent: Agent) => {
+    if (!sessionRef.current) return;
+    try {
+      const messages = agent.getConversation().getMessages();
+      sessionRef.current = updateSession(sessionRef.current, messages);
+      saveSession(sessionRef.current);
+    } catch {
+      // Non-fatal: silently ignore persistence errors
+    }
+  }, []);
+
   const start = useCallback(async (input: string) => {
     if (state.isRunning) return;
 
     pendingContentRef.current = '';
     flushedRawLengthRef.current = 0;
+
+    // Create a new session if we don't already have one (e.g. after resume)
+    if (!sessionRef.current) {
+      const session = createSession(config.provider || 'deepseek', config.model);
+      sessionRef.current = session;
+      saveSession(session);
+      setState(prev => ({ ...prev, sessionId: session.meta.id }));
+    }
 
     const agent = new Agent({ config, provider, services });
     agentRef.current = agent;
@@ -196,6 +231,7 @@ export function useAgent(
 
           case 'done': {
             flushTurn();
+            persistSession(agent);
             currentToolGroups = [];
             setState(prev => ({
               ...prev,
@@ -239,7 +275,7 @@ export function useAgent(
         return { ...prev, isRunning: false, currentContent: '' };
       });
     }
-  }, [config, provider, services, state.isRunning]);
+  }, [config, provider, services, state.isRunning, persistSession]);
 
   const abort = useCallback(() => {
     abortRef.current?.abort();
@@ -250,12 +286,14 @@ export function useAgent(
   const reset = useCallback(() => {
     pendingContentRef.current = '';
     flushedRawLengthRef.current = 0;
+    sessionRef.current = null;
     setState({
       isRunning: false,
       toolGroups: [],
       currentContent: '',
       messageCount: 0,
-      error: null
+      error: null,
+      sessionId: null,
     });
   }, []);
 
@@ -268,5 +306,30 @@ export function useAgent(
     }));
   }, []);
 
-  return { state, start, abort, reset, toggleToolGroup };
+  /**
+   * Resume a persisted session by ID.
+   * Returns an error string if the session doesn't exist, null on success.
+   */
+  const resumeSession = useCallback((id: string): string | null => {
+    const session = loadSession(id);
+    if (!session) return `Session not found: ${id}`;
+
+    sessionRef.current = session;
+    setState({
+      isRunning: false,
+      toolGroups: [],
+      currentContent: '',
+      messageCount: session.meta.messageCount,
+      error: null,
+      sessionId: session.meta.id,
+    });
+    return null;
+  }, []);
+
+  /** List recent sessions (most recent first) */
+  const getSessions = useCallback((): SessionMeta[] => {
+    return listSessions();
+  }, []);
+
+  return { state, start, abort, reset, toggleToolGroup, resumeSession, getSessions };
 }

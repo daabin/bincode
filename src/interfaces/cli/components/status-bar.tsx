@@ -11,9 +11,10 @@ interface StatusBarProps {
   model: string;
   isRunning: boolean;
   messageCount: number;
+  sessionId?: string | null;
 }
 
-export function StatusBar({ provider, model, isRunning, messageCount }: StatusBarProps) {
+export function StatusBar({ provider, model, isRunning, messageCount, sessionId }: StatusBarProps) {
   return (
     <Box
       borderStyle="single"
@@ -26,6 +27,13 @@ export function StatusBar({ provider, model, isRunning, messageCount }: StatusBa
         <Text color="gray"> | </Text>
         <Text color="yellow">{provider}</Text>
         <Text color="gray">/{model}</Text>
+        {sessionId && (
+          <>
+            <Text color="gray"> | </Text>
+            <Text color="gray">sess:</Text>
+            <Text color="cyan">{sessionId.slice(0, 8)}</Text>
+          </>
+        )}
       </Box>
 
       <Box>

@@ -12,6 +12,8 @@ import { createDefaultToolRegistry } from '../tools/index.js';
 import { getApiKey, getBaseUrl, getModel } from '../config/index.js';
 import type { AgentConfig } from '../types/agent.js';
 
+import type { ChatMessage } from '../types/core.js';
+
 export interface CreateAgentOptions {
   cwd?: string;
   apiKey?: string;
@@ -19,6 +21,8 @@ export interface CreateAgentOptions {
   model?: string;
   maxIterations?: number;
   systemPrompt?: string;
+  /** Pre-load historical messages (e.g. from a persisted session) */
+  initialMessages?: ChatMessage[];
 }
 
 /**
@@ -53,7 +57,8 @@ export function createAgent(options: CreateAgentOptions = {}): Agent {
     config,
     provider,
     services,
-    systemPrompt: options.systemPrompt
+    systemPrompt: options.systemPrompt,
+    initialMessages: options.initialMessages
   });
 
   // Register default tools

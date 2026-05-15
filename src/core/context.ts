@@ -57,6 +57,16 @@ export class ConversationManager {
     return estimateMessagesTokens(this.messages);
   }
 
+  /**
+   * Load historical messages (e.g. from a persisted session).
+   * Preserves the existing system prompt; skips any system messages in the input.
+   */
+  loadMessages(messages: ChatMessage[]): void {
+    const systemMsg = this.messages.find(m => m.role === 'system');
+    const history = messages.filter(m => m.role !== 'system');
+    this.messages = systemMsg ? [systemMsg, ...history] : [...history];
+  }
+
   clear(): void {
     const systemMsg = this.messages.find(m => m.role === 'system');
     this.messages = systemMsg ? [systemMsg] : [];

@@ -1,0 +1,32 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#58a6ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3fb950;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#161b22;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="128" height="128" rx="20" fill="url(#grad-bg)" stroke="url(#grad)" stroke-width="2"/>
+
+  <!-- Hexagon outer -->
+  <path d="M 64 16 L 96 34 L 96 70 L 64 88 L 32 70 L 32 34 Z"
+        stroke="url(#grad)" stroke-width="2.5" fill="none" opacity="0.6"/>
+
+  <!-- Hexagon inner (filled) -->
+  <path d="M 64 28 L 86 42 L 86 66 L 64 80 L 42 66 L 42 42 Z"
+        fill="url(#grad)" opacity="0.15"/>
+
+  <!-- Code brackets -->
+  <text x="64" y="62" font-family="'Courier New', monospace" font-size="34" font-weight="bold"
+        fill="url(#grad)" text-anchor="middle" dominant-baseline="middle">&lt;/&gt;</text>
+
+  <!-- Small decorative dots -->
+  <circle cx="32" cy="34" r="2" fill="#58a6ff" opacity="0.5"/>
+  <circle cx="96" cy="34" r="2" fill="#3fb950" opacity="0.5"/>
+  <circle cx="64" cy="88" r="2" fill="#58a6ff" opacity="0.5"/>
+</svg>

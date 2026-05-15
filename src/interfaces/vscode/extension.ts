@@ -72,7 +72,7 @@ function registerInlineCompletion(context: vscode.ExtensionContext) {
 }
 
 function registerChatView(context: vscode.ExtensionContext) {
-  chatProvider = new ChatViewProvider(context.extensionUri);
+  chatProvider = new ChatViewProvider(context.extensionUri, context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('bincode.chatView', chatProvider)
   );
